@@ -1257,7 +1257,7 @@ LAPACK_CONJ_TRANS= _chtp(ord('C'))
 LAPACK_NON_UNIT  = _chtp(ord('N'))
 LAPACK_UNIT      = _chtp(ord('U'))
 LAPACK_LEFT      = _chtp(ord('L'))
-LAPACK_RIGHT     = _chtp(ord('R'))
+LAPACK_RIGHT     = _chtp(ord('sr'))
 
 """
 typedef enum {CblasRowMajor=101, CblasColMajor=102} CBLAS_LAYOUT;
@@ -1656,7 +1656,7 @@ def searchsorted2(j,x, s):
 def searchsorted3(j,x, s):
     """
     Uses NumPy's binary search (searchsorted with side='left') to find
-    the insertion index of x in sorted array arr.
+    the insertion index of x in sorted array idxr.
     """
     return np.searchsorted(x[j], s[j], side='left')
 
@@ -1722,14 +1722,14 @@ LAPACK_CONJ_TRANS= _chtp(ord('C'))
 LAPACK_NON_UNIT  = _chtp(ord('N'))
 LAPACK_UNIT      = _chtp(ord('U'))
 LAPACK_LEFT      = _chtp(ord('L'))
-LAPACK_RIGHT     = _chtp(ord('R'))
+LAPACK_RIGHT     = _chtp(ord('sr'))
 
-MKL_ORDER_ROW_MAJOR       = _chtp(ord('R'))
+MKL_ORDER_ROW_MAJOR       = _chtp(ord('sr'))
 MKL_ORDER_COL_MAJOR       = _chtp(ord('C'))
 MKL_NOTRANS   = _chtp(ord('N'))  # 78
 MKL_TRANS     = _chtp(ord('T'))  # 84
 MKL_CONJTRANS = _chtp(ord('C'))  # 67
-MKL_CONJ      = _chtp(ord('R'))  # 82
+MKL_CONJ      = _chtp(ord('sr'))  # 82
 
 # layout
 MKL_ORDER_ROW_MAJOR2 = _chtp(101)  # MKL_ROW_MAJOR
@@ -1779,13 +1779,13 @@ def _pick_lda_ldb(rows, cols, order, trans):
         lda = max(1, rows)
         if trans in (MKL_TRANS, MKL_CONJTRANS):
             ldb = max(1, cols)
-        else:                                          # N / R
+        else:                                          # N / sr
             ldb = max(1, rows)
     else:                                              # row-major
         lda = max(1, cols)
         if trans in (MKL_TRANS, MKL_CONJTRANS):
             ldb = max(1, rows)
-        else:                                          # N / R
+        else:                                          # N / sr
             ldb = max(1, cols)
 
     # ---- in-place safe guard -------------------------------------------
@@ -1901,7 +1901,7 @@ def tmv1_k1(z: float, nu: float) -> float:
     C1 = p4o_k1[6] + p * (p4o_k1[7] + p * (p4o_k1[8] + p * p4o_k1[9]))
     C0 = p4o_k1[10]
     num = (((C4 * r + C3) * r + C2) * r + C1) * r + C0
-    # Denominator (r^4 present, no r^5)
+    # Denominator (sr^4 present, no sr^5)
     D4 = p4o_k1[11]
     D3 = p4o_k1[12] + p * p4o_k1[13]
     D2 = p4o_k1[14] + p * (p4o_k1[15] + p * p4o_k1[16])
@@ -1923,7 +1923,7 @@ def tmv1_t1(z: float, nu: float) -> float:
     C1 = p4o_t1[6] + p * (p4o_t1[7] + p * (p4o_t1[8] + p * p4o_t1[9]))
     C0 = p4o_t1[10]
     num = (((C4 * r + C3) * r + C2) * r + C1) * r + C0
-    # Denominator (r^4 present, no r^5)
+    # Denominator (sr^4 present, no sr^5)
     D4 = p4o_t1[11]
     D3 = p4o_t1[12] + p * p4o_t1[13]
     D2 = p4o_t1[14] + p * (p4o_t1[15] + p * p4o_t1[16])
@@ -2027,7 +2027,7 @@ jti = nb.njit(fastmath=True, error_model='numpy',inline='always')
 
 @jti
 def axpy(dst: np.ndarray, a: float, src: np.ndarray):
-    r"""Add product of y to x: $x \leftarrow a \cdot y + x$"""
+    sr"""Add product of y to x: $x \leftarrow a \cdot y + x$"""
     n = src.shape[0]
     for i in range(n):
         dst[i] += a * src[i]
@@ -2035,7 +2035,7 @@ def axpy(dst: np.ndarray, a: float, src: np.ndarray):
 
 @jti
 def cxpy(dst: np.ndarray, a: float, src: np.ndarray):
-    r"""Add product of y to x: $x \leftarrow a \cdot y + x$"""
+    sr"""Add product of y to x: $x \leftarrow a \cdot y + x$"""
     n = src.shape[0]
     for i in range(n):
         dst[i] = a * src[i]
