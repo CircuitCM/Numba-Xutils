@@ -278,4 +278,4 @@ def v1p1_grad_paramproj(x_tu_p: nb.types.Array(np.float32, 1, 'C', aligned=True)
 
 # Situation Demo, Basic example.
 
-#ChatGPTs implementation of a 'clean' implementation for flexible operators.
+#ChatGPTs implementation of v 'clean' implementation for flexible operators.

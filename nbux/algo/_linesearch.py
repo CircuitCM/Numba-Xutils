@@ -1,5 +1,5 @@
 import nbux._utils as nbu
-from ._misc import newton_to_monomial_quadratic
+from ..op._misc import quadratic_newton_coef
 import math as mt
 import numpy as np
 import numba as nb
@@ -46,7 +46,7 @@ def root_bisect(f_op,lo,hi,max_iters=60,typ=np.float64,er_tol = 1e-14):
         
 
 @nbu.rgi #register jittable with inlining, in interpreter runs as py func, but compiles with inlining when referenced in jit decorated scope.
-def bracketed_newton(fd_op, lo, hi, er_tol=1e-14, max_iters=20,sign=1):
+def _bracketed_newton(fd_op, lo, hi, er_tol=1e-14, max_iters=20,sign=1):
     """Newton step with fallback to generic bisection if it steps out of bounds. This is a root finding algorithm. fd_op returns f, fp, value and value gradient.
     
     Variable calculations are all f64.
@@ -82,9 +82,11 @@ def bracketed_newton(fd_op, lo, hi, er_tol=1e-14, max_iters=20,sign=1):
 
 
 
-@nbu.rgi
-def bracketed_secant(f_op, lo, hi, er_tol=1e-14, max_iters=20,sign=1):
-    """Basically the same thing as bracketed newton. f_op returns f. However the secant points use the two most recent points, instead of the updated lo hi brackets, this typically gets the most out of the secant method, while still guaranteeing convergence with bisection bracketing, we could make it more greedy as well by using increments >1/2 or <1/2.
+@nbu.jt
+def _bracketed_secant(f_op, lo, hi, er_tol=1e-14, max_iters=20,sign=1):
+    """
+    An older version of signedroot_secant, keeping around as it's simple.
+    Basically the same thing as bracketed newton. f_op returns f. However the secant points use the two most recent points, instead of the updated lo hi brackets, this typically gets the most out of the secant method, while still guaranteeing convergence with bisection bracketing, we could make it more greedy as well by using increments >1/2 or <1/2.
 
     Variable calculations are all f64.
 
@@ -123,7 +125,9 @@ def bracketed_secant(f_op, lo, hi, er_tol=1e-14, max_iters=20,sign=1):
     return lam
 
 @nbu.jt
-def signedroot_secant(f_op, lo, hi,br_rate=.5, max_iters=20, sign=1,eager=False,fallb=False,br_tol=None,er_tol=None,dtyp=None):
+def signedroot_secant(f_op, lo, hi,br_rate=.5, max_iters=20, sign=1,eager=False,fallb=False,
+                      br_tol=None,er_tol=None,rel_err=True,dtyp=None
+                      ):
     """A bracketed secant method that achieves (empirically) faster convergence by knowing the sign of the function to the left and right of the root.
     It also allows us to select if the slope of our root is positive or negative when there are multiple roots. Which corresponds to finding
     local minima and maxima of the integrated line.
@@ -188,7 +192,7 @@ def signedroot_secant(f_op, lo, hi,br_rate=.5, max_iters=20, sign=1,eager=False,
     while ict > 0:
             fd = (f - fo)
             af=abs(f)
-            nd=abs(fd) > br_tol*max(af,abs(fo))
+            nd=abs(fd) > (br_tol*max(af,abs(fo)) if rel_err else br_tol)
             _k=True
             #first is the precision good enough
             if nd:
@@ -208,7 +212,7 @@ def signedroot_secant(f_op, lo, hi,br_rate=.5, max_iters=20, sign=1,eager=False,
                 #we check secant on the fallback bracket, succeeds then next
                 #otherwise nd is true (fails again).
                 ft=(f - falt)
-                if abs(ft)>br_tol*max(af,abs(falt)):
+                if abs(ft)>(br_tol*max(af,abs(falt)) if rel_err else br_tol):
                     lamn = lam - f * (lam - lamalt) / ft
                     nd = not (ll < lamn < lh)
                 else:nd=True
@@ -237,12 +241,22 @@ def signedroot_secant(f_op, lo, hi,br_rate=.5, max_iters=20, sign=1,eager=False,
 
     return lam,lo,hi,2 if not op_bracket else 1 if ict==0 else 0 #2 is no lower bracket found, 1 failed to converge in time, 0 success
 
+
+@nbu.jt
+def posroot_nofallb_secant(f_op, lo, hi,br_rate=.5, max_iters=15,br_tol=None,er_tol=None,dtyp=None):
+    #NOTE TO USERS: you can get smaller byte-codes and maybe faster methods, by propagating constants through a wrapper eg
+    #But kwargs that are not called in the function header will also get statically compiled for that signature.
+    """All constants in this example will compile out their conditionals, resulting in a more lightweight procedure."""
+    return signedroot_secant(f_op, lo, hi, br_rate, max_iters, 1, True, False, br_tol, er_tol, True, dtyp)
+
+
+
 @nbu.jt
 def signedroot_quadinterp(f_op, lo, hi, br_rate=.5, max_iters=15, sign=1,eager=True,er_tol=None,br_tol=None,dtyp=None):
     """
     Signed Root quadratic interpolation scheme. Functions exactly like signedroot_secant but uses quadratic root solution. This method can save more than a few iterations when the problem has pronounced curvature at the root, otherwise the total # of steps is like the secant method and sometimes and rarely a bit worse if higher moments along the bracket dominate.
     
-    While the secant method has a convergence order of ~O(1.6), quadinterp is ~O(1.8).
+    While the secant method has a convergence order of ~O(1.6), quadinterp is ~O(1.8). Though this seems to be more like the average. With high root curvature it can even use only 1/2 the number of steps.
     """
     if dtyp is None: dtyp=nbu.type_ref(lo) # which will default to f64 unless dtyp is specified
     if br_tol is None:br_tol=nbu.prim_info(dtyp,2)**(2/3)
@@ -301,7 +315,7 @@ def signedroot_quadinterp(f_op, lo, hi, br_rate=.5, max_iters=15, sign=1,eager=T
     while ict > 0:
         #tbh we probably don't even need this check anymore, delta positive check could be enough.
         #nd=max(abs(f - fo),abs(f - falt)) > br_tol*max(abs(f),abs(fo),abs(falt))
-        a, b, c = newton_to_monomial_quadratic(lam, lamo, lamalt, f, fo, falt)
+        a, b, c = quadratic_newton_coef(lam, lamo, lamalt, f, fo, falt)
         delta = b*b - _4*a*c
         if delta>=_0:
             sqrt_delta = mt.sqrt(delta)
@@ -336,7 +350,7 @@ def signedroot_quadinterp(f_op, lo, hi, br_rate=.5, max_iters=15, sign=1,eager=T
 
 
 @nbu.jt
-def signseeking_newton(f_op, g_op, lo, hi, br_rate=.5, er_tol=1e-8, max_iters=12, sign=1,eager=False):
+def signedroot_newton(f_op, g_op, lo, hi, br_rate=.5, max_iters=12, sign=1,eager=True,er_tol=None,br_tol=None,rel_err=True,dtyp=None):
     """A bracketed Newton method that exploits prior knowledge about the side of the root and the desired root slope sign.
 
     Strategy mirrors the secant variant:
@@ -358,15 +372,21 @@ def signseeking_newton(f_op, g_op, lo, hi, br_rate=.5, er_tol=1e-8, max_iters=12
     :param br_rate: (0,1). Bracket increment (0.5 = classic bisection).
     :param sign: =1 means we expect f(lo)<f(root)<f(hi); =-1 means f(lo)>f(root)>f(hi).
     """
+    if dtyp is None: dtyp=nbu.type_ref(lo) # which will default to f64 unless dtyp is specified
+    if br_tol is None:br_tol=nbu.prim_info(dtyp,2)**(2/3)
+    if er_tol is None:er_tol=nbu.prim_info(dtyp,2)**(1/2)
+    br_rate,lo,hi,er_tol,br_tol=dtyp(br_rate),dtyp(lo),dtyp(hi),dtyp(er_tol),dtyp(br_tol)
+    _1=dtyp(1.)
+    _0=dtyp(0.)
     sign = nbu.force_const(sign)
     # Bias parameters mirror your secant version.
     if sign == 1:
         # Known side is right/hi (positive), eagerness toward the left.
-        lrt, hrt = br_rate, 1 - br_rate
+        lrt, hrt = br_rate, _1 - br_rate
         lam = hi  # start Newton on the known side
     else:
         # Known side is left/lo (positive), we want eagerness toward the right/unknown side.
-        lrt, hrt = 1 - br_rate, br_rate
+        lrt, hrt = _1 - br_rate, br_rate
         lam = lo  # start Newton on the known side
 
     # One f,g eval "outside" the loop; reused to propose the first Newton step.
@@ -375,11 +395,12 @@ def signseeking_newton(f_op, g_op, lo, hi, br_rate=.5, er_tol=1e-8, max_iters=12
 
     ict = int(max_iters)
     op_bracket = eager
-
+    
+    #We don't need to record all three relevant points besides for bracketing, so this looks a bit different.
     while ict > 0:
         # Proposed Newton step
         lamo = lam
-        if abs(g)<1e-15:
+        if abs(g)<(br_tol*abs(f) if rel_err else br_tol):
             lam = (lo*lrt + hi*hrt)
         else:
             lam = lam - f / g
@@ -393,7 +414,7 @@ def signseeking_newton(f_op, g_op, lo, hi, br_rate=.5, er_tol=1e-8, max_iters=12
         f = nbu.op_call_args(f_op, lam)
 
         # Bracket update
-        if (f > 0.0 if sign == 1 else f < 0.0):
+        if (f > _0 if sign == 1 else f < _0):
             hi = lam
         else:
             op_bracket = True
@@ -410,7 +431,7 @@ def signseeking_newton(f_op, g_op, lo, hi, br_rate=.5, er_tol=1e-8, max_iters=12
 
 
 @nbu.jt
-def signseeking_halley(f_op, g_op,c_op, lo, hi, br_rate=.5, er_tol=1e-8, max_iters=12, sign=1, eager=True):
+def signseeking_halley(f_op, g_op,c_op, lo, hi, br_rate=.5, max_iters=12, sign=1, eager=True,er_tol=None,br_tol=None,rel_err=True,dtyp=None):
     """A bracketed halley method that exploits prior knowledge about the side of the root and the desired root slope sign.
     
     Notes from Newton version, assume Halley:
@@ -434,15 +455,23 @@ def signseeking_halley(f_op, g_op,c_op, lo, hi, br_rate=.5, er_tol=1e-8, max_ite
     :param br_rate: (0,1). Bracket increment (0.5 = classic bisection).
     :param sign: =1 means we expect f(lo)<f(root)<f(hi); =-1 means f(lo)>f(root)>f(hi).
     """
-    sign = nbu.force_const(sign)
+    if dtyp is None: dtyp=nbu.type_ref(lo) # which will default to f64 unless dtyp is specified
+    if br_tol is None:br_tol=nbu.prim_info(dtyp,2)#**(2/3)
+    if er_tol is None:er_tol=nbu.prim_info(dtyp,2)**(1/2)
+    br_rate,lo,hi,er_tol,br_tol=dtyp(br_rate),dtyp(lo),dtyp(hi),dtyp(er_tol),dtyp(br_tol)
+    _1=dtyp(1.)
+    _2=dtyp(2.)
+    _0=dtyp(0.)
+    _05=dtyp(0.5)
+    #sign = nbu.force_const(sign)
     # Bias parameters mirror your secant version.
     if sign == 1:
         # Known side is right/hi (positive), eagerness toward the left.
-        lrt, hrt = br_rate, 1 - br_rate
+        lrt, hrt = br_rate, _1 - br_rate
         lam = hi  # start halley on the known side
     else:
         # Known side is left/lo (positive), we want eagerness toward the right/unknown side.
-        lrt, hrt = 1 - br_rate, br_rate
+        lrt, hrt = _1 - br_rate, br_rate
         lam = lo  # start halley on the known side
 
     # One f,g eval "outside" the loop; reused to propose the first Newton step.
@@ -456,10 +485,11 @@ def signseeking_halley(f_op, g_op,c_op, lo, hi, br_rate=.5, er_tol=1e-8, max_ite
     while ict > 0:
         # Proposed Halley step
         lamo = lam
-        if abs(g) < 1e-15:
+        denom=(g*g - _05*f*c)
+        if abs(denom) < (br_tol*abs(f) if rel_err else br_tol):
             lam = (lo * lrt + hi * hrt)
         else:
-            lam = lam - f*g / (g*g - .5*f*c) #see that if c~0 we get the newton update.
+            lam = lam - f*g / denom #see that if c~0 we get the newton update.
             lamb = (lo * lrt + hi * hrt)
 
             # Define admissible region
@@ -471,7 +501,7 @@ def signseeking_halley(f_op, g_op,c_op, lo, hi, br_rate=.5, er_tol=1e-8, max_ite
         c = nbu.op_call_args(c_op, lam)
 
         # Bracket update
-        if (f > 0.0 if sign == 1 else f < 0.0):
+        if (f > _0 if sign == 1 else f < _0):
             hi = lam
         else:
             op_bracket = True
@@ -488,7 +518,7 @@ def signseeking_halley(f_op, g_op,c_op, lo, hi, br_rate=.5, er_tol=1e-8, max_ite
 
 @nbu.rgi
 def brents_method(f_op, lo, hi, er_tol=1e-12, max_iters=50):
-    """ NOTE: In reality this method appears to almost never outperform the bracketed secant method, converging in more steps. But both have convergence guarantees from the bisection bracket. And the compiled kernel of bracketed secant will be significantly smaller. Maybe this implementation is not completely correct?
+    """ NOTE: In reality this method appears to almost never outperform the bracketed secant or quadinterp method, converging in more steps. But all have smooth convergence guarantees from the bisection bracket. And the compiled kernel of bracketed secant will be significantly smaller. Maybe this implementation is not completely correct?
     
     Original Brent's method per Wikipedia (inverse quadratic interpolation + secant + bisection),
     no pre-bisection. Requires the caller to provide a valid bracket with f(lo)*f(hi) <= 0.

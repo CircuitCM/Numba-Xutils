@@ -13,6 +13,11 @@ from functools import wraps
 import os
 _N = types.none
 from numba.core.errors import NumbaPerformanceWarning
+
+#Some shorthands
+unroll=nb.literal_unroll
+
+# implements
 def njit_no_parallelperf_warn(**njit_kwargs):
     """
     Drop‑in replacement for @nb.njit(parallel=True) that suppresses the
@@ -36,10 +41,10 @@ def rg_no_parallelperf_warn(rrg):
 
 #This only changes once at import time.
 #--- Numba Global Fastmath : you can frequently get a 2x performance boost, for virtually no loss in error range (only 4x larger than 2**-{# your bit precision range})
-_fm=os.environ.get('NB_GFASTM','true')
+_fm=os.environ.get('NB_GLOB_FM','true')
 _fm = False if not _fm or _fm.lower() in 'false' else eval(_fm) if any(i in _fm for i in ('[','{','(')) else True
 #--- Numba Global Error Model : 'numpy'|'python' will do less checks but frequently has much faster jitted code, because it isn't forced to fall back to larger data types, [see this article](). 
-_erm=os.environ.get('NB_GERRMOD','numpy')
+_erm=os.environ.get('NB_GLOB_EM','numpy')
 
 """
 Before continuation some notes on this section:
@@ -116,7 +121,7 @@ jtpn=nb.njit(**jit_pn)
 jtpn_s=njit_no_parallelperf_warn(**jit_pn)
 jtpnc=nb.njit(**jit_pcn)
 jtpnc_s=njit_no_parallelperf_warn(**jit_pcn)
-# Parallel + inline are not relevant together - inline will push the code the the next function scope, this scope will need a non-inline parallel to run the prange
+# Parallel + inline are not relevant together - inline will push the code to the next function scope, this scope will need a non-inline parallel to run the prange
 # jtpi=nb.njit(**jit_pi)
 # jtpi_s=njit_no_parallelperf_warn(**jit_pi)
 # jtpic=nb.njit(**jit_pci)
@@ -151,19 +156,12 @@ ovpc=lambda impl: overload(impl,jit_options=jit_pc)
 #shorthand
 fb_=np.frombuffer
 
-#See if you can make this more performant in the future
-@rgi
-def ffb_(buffr,sidx,eidx,dtype):
-    typ=type_ref(buffr)
-    ogo=prim_info(typ,3)
-    ogn=prim_info(dtype,3)
-    tm=ogn//ogo
-
 def compiletime_parallelswitch():
     pass
 
 @intrinsic
 def stack_empty_impl(typingctx,size,dtype):
+    """Low level llvm call for stack_empty."""
     def impl(context, builder, signature, args):
         ty=context.get_value_type(dtype.dtype)
         ptr = cgutils.alloca_once(builder, ty,size=args[0])
@@ -173,13 +171,9 @@ def stack_empty_impl(typingctx,size,dtype):
     return sig, impl
 
 def stack_empty(size,shape,dtype):
-    return np.empty(shape,dtype=dtype)
-
-@jtc
-def stack_empty_(size, shape, dtype):
-    #From: https://github.com/numba/numba/issues/5084#issue-550324913
-    #Forces small stack allocated array. maybe 2x quicker than naive np.array allocation.
     """
+    Forces small stack allocated array. maybe 2x quicker than naive np.array reallocation.
+    
     Size (int) must be a fixed at compile time.
     It is not possible to change it during execution.
 
@@ -189,19 +183,30 @@ def stack_empty_(size, shape, dtype):
     The datatype also have to be fixed in this implementation.
 
     The carray can't be returned from a function.
+    
+    From: https://github.com/numba/numba/issues/5084#issue-550324913
     """
+    return np.empty(shape,dtype=dtype)
+
+@jtc
+def stack_empty_(size, shape, dtype):
+    """The numba implementation of `stack_empty` """
     arr_ptr=stack_empty_impl(size,dtype)
     arr=nb.carray(arr_ptr,shape)
     return arr
 
-@overload(stack_empty, **cfg.jit_s,cache=True)
+@ovs#c
 def _stack_empty(size,shape,dtype):
-    #same as above, but now calling stack_empty in a python area will just return a normal c-array with shape and dtype.
+    """Thes overloads the implementation, so calling stack_empty in a python area will just return a normal c-array with shape and dtype."""
     return lambda size, shape, dtype: stack_empty_(size, shape, dtype)
 
 #can probably use this to replace the self archive tracking for de-bpesta mutation.
 @intrinsic
 def nb_val_ptr(typingctx, data):
+    """Get the address of any numba primitive value.
+    
+    Use for setting or getting values in some non-local setting within numba, e.g. a call to certain LAPACK or BLAS routines with a value return.
+    """
     def impl(context, builder, signature, args):
         ptr = cgutils.alloca_once_value(builder,args[0])
         return ptr
@@ -210,6 +215,7 @@ def nb_val_ptr(typingctx, data):
 
 @intrinsic
 def nb_ptr_val(typingctx, data):
+    """Get the value from a pointer/adress."""
     def impl(context, builder, signature, args):
         val = builder.load(args[0])
         return val
@@ -218,6 +224,7 @@ def nb_ptr_val(typingctx, data):
 
 @intrinsic
 def nb_array_ptr(typingctx, arr_typ):
+    """Get the base pointer offset of an extant array."""
     elptr = types.CPointer(arr_typ.dtype)
     def codegen(ctx, builder, sig, args):
         return ctx.make_helper(builder, sig.args[0], args[0]).data
@@ -225,7 +232,7 @@ def nb_array_ptr(typingctx, arr_typ):
 
 @jtic 
 def buffer_nelems_andp(arr):
-    """This is basically a method to get the gaps in a discontinuous array. It's a method to return the contiguous backing array to be used for iterations where mutation of the discontuous portion isn't actually relevant but can improve total loop performance."""
+    """This is basically a method to get the gaps in a discontinuous array. It's a method to return the contiguous backing array to be used for iterations where mutation of the discontinuous portion isn't actually relevant but can improve total loop performance through vectorized contiguous blocks."""
     ptr=nb_array_ptr(arr)
     size = arr.size
     if arr.ndim<2:return size,ptr
@@ -264,15 +271,49 @@ def display_round(f,m=1,s=10):
     m10 = 10. ** (m - 1)
     s10= 10. ** s
     return np.float64(np.int64(f * s10*m10 + .5)) / s10
-    
+
+"""
+## Supported Numpy types in Numba:
+
+| Type name(s)    | Shorthand | Comments                               |
+|-----------------|-----------|----------------------------------------|
+| boolean         | b1        | represented as a byte                  |
+| uint8, byte     | u1        | 8-bit unsigned byte                    |
+| uint16          | u2        | 16-bit unsigned integer                |
+| uint32          | u4        | 32-bit unsigned integer                |
+| uint64          | u8        | 64-bit unsigned integer                |
+| int8, char      | i1        | 8-bit signed byte                      |
+| int16           | i2        | 16-bit signed integer                  |
+| int32           | i4        | 32-bit signed integer                  |
+| int64           | i8        | 64-bit signed integer                  |
+| intc            | –         | C int-sized integer                    |
+| uintc           | –         | C int-sized unsigned integer           |
+| intp            | –         | pointer-sized integer                  |
+| uintp           | –         | pointer-sized unsigned integer         |
+| float32         | f4        | single-precision floating-point number |
+| float64, double | f8        | double-precision floating-point number |
+| complex64       | c8        | single-precision complex number        |
+| complex128      | c16       | double-precision complex number        |
+
+We can get the type using type_ref and check it against np.dtype's within the jit scope.
+But it has to be single boolean statements eg typ is np.float64 or typ is np.float32. Likely because this is compile time
+and not run time.
+
+""" 
 
 def type_ref(arg):
-    #print(idxr.dtype,idxr.dtype.type)
+    """Get the data type of an array, otherwise get the type of a value.
+    
+    Works in python and numba blocks.
+    
+    Useful for gathering type specific information at signature compile time. E.g. dtype epsilon, or min-max values.
+    """
     if isinstance(arg,np.ndarray): return arg.dtype.type
     else: return type(arg)
 
 @ovsic(type_ref)
 def _type_ref(arg):
+    """"""
     #now supports primitive types, literals and array memory type.
     if isinstance(arg,types.Literal): #we should never even get this result
         typ=arg._literal_type_cache
@@ -281,7 +322,7 @@ def _type_ref(arg):
         typ = arg.dtype
         return lambda arg: typ
     else:
-        typ=arg #it only sees type in this scope not value
+        typ=arg #It's already the correct type. it only sees type in this scope not value
         return lambda arg: typ
 
 def if_val_cast(typ,val):
@@ -343,6 +384,28 @@ def _op_call_args(cal,args):
         return lambda cal,args: cal[0](*args,*cal[1:])
     #if not ct and not rt:
     return lambda cal,args: cal[0](args,*cal[1:])
+
+
+@rgc
+def aligned_buffer(n_bytes: int, align: int = 64) -> np.ndarray:
+    """Return an aligned ``uint8`` view of length ``n_bytes``.
+
+    A slightly oversized buffer is allocated and then *manually aligned* by
+    slicing so that ``result.ctypes.data % align == 0``. The extra capacity is
+    not exposed by the returned view.
+
+    Parameters
+    ----------
+    n_bytes : int
+        Logical size of the returned view (in bytes).
+    align : int
+        Desired byte alignment (power-of-two is assumed).
+    """
+    raw = np.empty(n_bytes + align, dtype=np.uint8)
+    offset = (-raw.ctypes.data) & (align - 1)
+    return raw[offset : offset + n_bytes]
+
+
 
 
 def prim_info(dt, field):

@@ -4,15 +4,15 @@ import math as mt
 
 
 # two dashes are old definitions or just unecessary.
-# methods like dst[:]=a, dst[:]=src, dst[:]+=a, dst[:]+=src and other single variable broadcasts should have no loss of performance
-# by not being represented as a kernel. The rest of the kernels should have some memory or performance benefit from their broadcast
+# methods like dst[:]=v, dst[:]=src, dst[:]+=v, dst[:]+=src and other single variable broadcasts should have no loss of performance
+# by not being represented as v kernel. The rest of the kernels should have some memory or performance benefit from their broadcast
 # counterparts.
 
 # USER is responsible for selection of scalar floating value types.
 
 @nbu.jti
 def dot(x: np.ndarray, y: np.ndarray) -> float:
-    sr"""Vector dot product: $v \leftarrow x^T y$"""
+    """Vector dot product: $v \leftarrow x^T y$"""
     n = x.shape[0]
     v = nbu.type_ref(x)(0.0)
     for i in range(n):
@@ -21,7 +21,7 @@ def dot(x: np.ndarray, y: np.ndarray) -> float:
 
 @nbu.jti
 def ndot(x: np.ndarray, y: np.ndarray) -> float:
-    sr"""Vector negate dot product: $v \leftarrow - x^T y$"""
+    """Vector negate dot product: $v \leftarrow - x^T y$"""
     n = x.shape[0]
     v = nbu.type_ref(x)(0.0)
     for i in range(n):
@@ -31,7 +31,7 @@ def ndot(x: np.ndarray, y: np.ndarray) -> float:
 
 @nbu.jti
 def doti(x: np.ndarray) -> float:
-    sr"""Vector dot product with itself: $v \leftarrow x^T x$"""
+    """Vector dot product with itself: $v \leftarrow x^T x$"""
     n = x.shape[0]
     v = nbu.type_ref(x)(0.0)
     for i in range(n):
@@ -40,7 +40,7 @@ def doti(x: np.ndarray) -> float:
 
 @nbu.jti
 def tridot(x: np.ndarray, y: np.ndarray,z: np.ndarray) -> (float,float):
-    sr"""Vector dot product: $a \leftarrow x^T y,\; b \leftarrow x^T z$"""
+    """Vector dot product: $v \leftarrow x^T y,\; b \leftarrow x^T z$"""
     n = x.shape[0]
     v1=v2 = nbu.type_ref(x)(0.0)
     for i in range(n):
@@ -55,7 +55,7 @@ def l2nm(x: np.ndarray) -> float:return mt.sqrt(doti(x))
 
 @nbu.jti
 def __cxy(dst: np.ndarray, src: np.ndarray, ):
-    sr"""Copy vector: $x \leftarrow y$"""
+    """Copy vector: $x \leftarrow y$"""
     n = src.shape[0]
     for i in range(n):
         dst[i] = src[i]
@@ -64,7 +64,7 @@ def __cxy(dst: np.ndarray, src: np.ndarray, ):
 
 @nbu.jti
 def cxny(dst: np.ndarray, src: np.ndarray, ):
-    sr"""Copy negative y to x: $x \leftarrow -y$"""
+    """Copy negative y to x: $x \leftarrow -y$"""
     n = src.shape[0]
     for i in range(n):
         dst[i] = -src[i]
@@ -73,7 +73,7 @@ def cxny(dst: np.ndarray, src: np.ndarray, ):
 
 @nbu.jti
 def nx(dst: np.ndarray):
-    sr"""Negate self (in-place): $x \leftarrow -x$"""
+    """Negate self (in-place): $x \leftarrow -x$"""
     n = dst.shape[0]
     for i in range(n):
         dst[i] = -dst[i]
@@ -82,7 +82,7 @@ def nx(dst: np.ndarray):
 
 @nbu.jti
 def cxpy(dst: np.ndarray, v1: float, src: np.ndarray):
-    sr"""Copy value product y to x: $x \leftarrow v_1 \cdot y$"""
+    """Copy value product y to x: $x \leftarrow v_1 \cdot y$"""
     n = src.shape[0]
     v1 = nbu.type_ref(src)(v1)
     for i in range(n):
@@ -92,7 +92,7 @@ def cxpy(dst: np.ndarray, v1: float, src: np.ndarray):
 
 @nbu.jti
 def cxay(dst: np.ndarray, v1: float, src):
-    sr"""Copy value added y to x: $x \leftarrow v_1 + y$ """
+    """Copy value added y to x: $x \leftarrow v_1 + y$ """
     n = src.shape[0]
     v1 = nbu.type_ref(src)(v1)
     for i in range(n):
@@ -102,7 +102,7 @@ def cxay(dst: np.ndarray, v1: float, src):
 
 @nbu.jti
 def cxapy(dst: np.ndarray, v1: float, v2: float, src):
-    sr"""Copy product of y value added, to x: $x \leftarrow a + b \cdot y$"""
+    """Copy product of y value added, to x: $x \leftarrow v + b \cdot y$"""
     n = src.shape[0]
     typ = nbu.type_ref(src)
     v1, v2 = typ(v1), typ(v2)
@@ -112,18 +112,18 @@ def cxapy(dst: np.ndarray, v1: float, v2: float, src):
 
 
 @nbu.jti
-def axpy(dst: np.ndarray, a: float, src: np.ndarray):
-    sr"""Add product of y to x: $x \leftarrow a \cdot y + x$"""
+def axpy(dst: np.ndarray, v: float, src: np.ndarray):
+    """Add to x (product of y): $x \leftarrow v \cdot y + x$"""
     n = src.shape[0]
-    a = nbu.type_ref(src)(a)
+    v = nbu.type_ref(src)(v)
     for i in range(n):
-        dst[i] += a * src[i]
+        dst[i] += v * src[i]
     return dst
 
 
 @nbu.jti
 def axay(dst: np.ndarray, v1: float, src: np.ndarray):
-    sr"""Add value added y to x: $x \leftarrow (a + y) + x$"""
+    """Add value added y to x: $x \leftarrow (v + y) + x$"""
     n = src.shape[0]
     v1 = nbu.type_ref(src)(v1)
     for i in range(n):
@@ -133,7 +133,7 @@ def axay(dst: np.ndarray, v1: float, src: np.ndarray):
 
 @nbu.jti
 def axapy(dst: np.ndarray, v1: float, v2: float, src: np.ndarray):
-    sr"""Add product of y value added, to x: $x \leftarrow (a + b \cdot y) + x$"""
+    """Add product of y value added, to x: $x \leftarrow (v + b \cdot y) + x$"""
     n = src.shape[0]
     typ = nbu.type_ref(src)
     v1, v2 = typ(v1), typ(v2)
@@ -143,12 +143,22 @@ def axapy(dst: np.ndarray, v1: float, v2: float, src: np.ndarray):
 
 @nbu.jti
 def pxaxpy(dst: np.ndarray, v1: float, v2: float, src: np.ndarray):
-    sr"""Value product to x add value product of y to x: $x \leftarrow v_1 \cdot x + v_2 \cdot y$"""
+    """Value product to x add value product of y to x: $x \leftarrow v_1 \cdot x + v_2 \cdot y$"""
     n = src.shape[0]
     typ = nbu.type_ref(src)
     v1, v2 = typ(v1), typ(v2)
     for i in range(n):
-        dst[i] = v1*dst[i] + v2*src[i] #not a copy technically would be px
+        dst[i] = v1*dst[i] + v2*src[i] #not v copy technically would be px
+    return dst
+
+@nbu.jti
+def pxaxy(dst: np.ndarray, v1: float, src: np.ndarray):
+    """Value product to x add y to x."""
+    n = src.shape[0]
+    typ = nbu.type_ref(src)
+    v1 = typ(v1)
+    for i in range(n):
+        dst[i] = v1*dst[i] + src[i]
     return dst
 
 #NOTE turns out triads seem to perform better than two applications of two separate arrays.
@@ -157,18 +167,18 @@ def pxaxpy(dst: np.ndarray, v1: float, v2: float, src: np.ndarray):
 #https://en.wikichip.org/wiki/intel/microarchitectures/skylake_(client)#Scheduler_Ports_.26_Execution_Units
 @nbu.jti
 def cxapypz(dst: np.ndarray, v1: float, v2: float, src1: np.ndarray, src2: np.ndarray):
-    sr"""Copy product y add product z: $x \leftarrow v_1 \cdot x + v_2 \cdot y$"""
+    """Copy to x (product y add product z): $x \leftarrow v_1 \cdot x + v_2 \cdot y$"""
     n = src1.shape[0]
     v1, v2 = nbu.type_ref(src1)(v1), nbu.type_ref(src2)(v2)
     for i in range(n):
-        dst[i] = v1*src1[i] + v2*src2[i] #not a copy technically would be px
+        dst[i] = v1*src1[i] + v2*src2[i] #not v copy technically would be px
     return dst
-#pxaxpy and cxapypz should see a 2x performance boost from counterparts
+#pxaxpy and cxapypz should see v 2x performance boost from counterparts
 
-#this is actual a 3 port load technically but still seems to improve in benchmarking.
+#this is actual v 3 port load technically but still seems to improve in benchmarking.
 @nbu.jti
 def axapypz(dst: np.ndarray, v1: float, v2: float, src1: np.ndarray, src2: np.ndarray):
-    sr"""(to x) add product y add product z: $x \leftarrow v_1 \cdot x + v_2 \cdot y$"""
+    """Add to x (product y add product z): $x \leftarrow v_1 \cdot x + v_2 \cdot y$"""
     n = src1.shape[0]
     v1, v2 = nbu.type_ref(src1)(v1), nbu.type_ref(src2)(v2)
     for i in range(n):
@@ -177,18 +187,26 @@ def axapypz(dst: np.ndarray, v1: float, v2: float, src1: np.ndarray, src2: np.nd
 
 @nbu.jti
 def cxapyz(dst: np.ndarray, v1: float, src1: np.ndarray, src2: np.ndarray):
-    sr"""Copy product y add product z: $x \leftarrow v_1 \cdot x + \cdot y$"""
+    """Copy to x (product y add z): $x \leftarrow v_1 \cdot x + \cdot y$"""
     n = src1.shape[0]
     v1 = nbu.type_ref(src1)(v1)
     for i in range(n):
-        dst[i] = v1*src1[i] + src2[i] #not a copy technically would be px
+        dst[i] = v1*src1[i] + src2[i] #not v copy technically would be px
+    return dst
+
+@nbu.jti
+def cxayz(dst: np.ndarray, src1: np.ndarray, src2: np.ndarray):
+    """Copy to x (y add z)"""
+    n = src1.shape[0]
+    for i in range(n):
+        dst[i] = src1[i] + src2[i]
     return dst
 
 #slight improvement here as well.
 @nbu.jti
 def cxypz(dst1: np.ndarray, dst2: np.ndarray, a: float, b: float, src: np.ndarray):
-    sr"""Copy (to x,y) products of a single source: 
-    $x_i = a \cdot s_i,\; y_i = b \cdot s_i$"""
+    """Copy (to x,y) products of v single source: 
+    $x_i = v \cdot s_i,\; y_i = b \cdot s_i$"""
     n = src.shape[0]
     typ=nbu.type_ref(src)
     a, b = typ(a), typ(b)
@@ -201,8 +219,8 @@ def cxypz(dst1: np.ndarray, dst2: np.ndarray, a: float, b: float, src: np.ndarra
 
 @nbu.jti
 def axypz(dst1: np.ndarray, dst2: np.ndarray, a: float, b: float, src: np.ndarray):
-    sr"""Add (to x,y) products of a single source:
-    $x_i \mathrel{+}= a \cdot s_i,\; y_i \mathrel{+}= b \cdot s_i$"""
+    """Add (to x,y) products of v single source:
+    $x_i \mathrel{+}= v \cdot s_i,\; y_i \mathrel{+}= b \cdot s_i$"""
     n = src.shape[0]
     typ=nbu.type_ref(src)
     a, b = typ(a), typ(b)
@@ -214,7 +232,7 @@ def axypz(dst1: np.ndarray, dst2: np.ndarray, a: float, b: float, src: np.ndarra
         
 @nbu.jti
 def vmax(x: np.ndarray) -> float:
-    sr"""Finds the maximum value in a vector: $v \leftarrow \max(x_i)$"""
+    """Finds the maximum value in v vector: $v \leftarrow \max(x_i)$"""
     typ=nbu.type_ref(x)
     v = typ(nbu.prim_info(typ,0))
     for e in x: 
@@ -223,7 +241,7 @@ def vmax(x: np.ndarray) -> float:
 
 @nbu.jti
 def vmin(x: np.ndarray) -> float:
-    sr"""Finds the minimum value in a vector: $v \leftarrow \min(x_i)$"""
+    """Finds the minimum value in v vector: $v \leftarrow \min(x_i)$"""
     typ=nbu.type_ref(x)
     v =typ(nbu.prim_info(typ,1))
     for e in x:
@@ -232,7 +250,7 @@ def vmin(x: np.ndarray) -> float:
 
 @nbu.jti
 def vminmax(x: np.ndarray) -> (float,float):
-    sr"""Finds the minimum and maximum value in a vector: $\rightarrow \min(x_i),\max(x_i)$"""
+    """Finds the minimum and maximum value in v vector: $\rightarrow \min(x_i),\max(x_i)$"""
     typ=nbu.type_ref(x)
     vm = typ(nbu.prim_info(typ,1))
     vx = typ(nbu.prim_info(typ,0))
@@ -243,7 +261,7 @@ def vminmax(x: np.ndarray) -> (float,float):
 
 @nbu.jti
 def argminmax(x: np.ndarray) -> (float,float):
-    sr"""Finds the minimum and maximum value in a vector: $\rightarrow \min_i(x_i),\max_j(x_j), i, j$"""
+    """Finds the minimum and maximum value in v vector: $\rightarrow \min_i(x_i),\max_j(x_j), i, j$"""
     typ=nbu.type_ref(x)
     vm = typ(nbu.prim_info(typ,1))
     vx = typ(nbu.prim_info(typ,0))
@@ -260,9 +278,35 @@ def argminmax(x: np.ndarray) -> (float,float):
     #we can 
     return vm,vx,i,j
 
+@nbu.jtic
+def dtrace(x):
+    """Square Diagonal Trace"""
+    t=nbu.type_ref(x)
+    for i in range(x.shape[0]):t+=x[i,i]
+    return t
+
+@nbu.jtic
+def dadd(x,v):
+    """Square diagonal Add."""
+    for i in range(x.shape[0]):x[i,i]+=v
+
+@nbu.jtic
+def dvadd(x,v):
+    """Square diagonal vector Add."""
+    for i in range(x.shape[0]):x[i,i]+=v[i]
+
+@nbu.jtic
+def dmult(x,v):
+    for i in range(x.shape[0]):x[i,i]*=v
+
+@nbu.jtic
+def dvmult(x,v):
+    for i in range(x.shape[0]):x[i,i]*=v[i]
+    
+
 @nbu.jti
 def __argminmax_2k(x: np.ndarray): #this is much slower than the simple 1 loop versions.
-    sr"""Two step calculation, this only costs 1.5n comparisons instead of 2n comparisons of the previous method.
+    """Two step calculation, this only costs 1.5n comparisons instead of 2n comparisons of the previous method.
     But in practice it's of course much slower than `argminmax`.
     """
     typ = nbu.type_ref(x)
@@ -303,4 +347,4 @@ def __argminmax_2k(x: np.ndarray): #this is much slower than the simple 1 loop v
 
     return vm, vx, i, j
 
-### --- IMPLICIT OPERATORS may move these to a separate module later
+### --- IMPLICIT OPERATORS may move these to v separate module later

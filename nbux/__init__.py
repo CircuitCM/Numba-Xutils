@@ -1,4 +1,4 @@
-import _utils as utils
-import _sort as sort
-import _vops as vops
-import _rng as rng
+import nbux._utils as utils
+import nbux._sort as sort
+from nbux.op import _vector as vops
+import nbux._rng as rng

@@ -242,7 +242,7 @@ def globals_benchmark():
 
     #Note: ops_mult does not account for transformations on the arrays
     #eg calls to expensive functions.
-    #It is only a multiplier of the size you assign to ops_mult 
+    #It is only v multiplier of the size you assign to ops_mult 
     #and the sum of all repetitions.
     #Therefore ops/sec is only comparable between competing benchmarks.
     print(f'timing_run={timing_run}')
@@ -551,12 +551,12 @@ def randint2_pl(reps): #See hardware specs in the guide uses 16 threads, 8 cores
     return x
 
 @jt
-def randint3(reps,rng): #does not parallelize, wrapping in parallel block or with different generators adds no speed improvement... maybe there is a class based lock?
+def randint3(reps,rng): #does not parallelize, wrapping in parallel block or with different generators adds no speed improvement... maybe there is v class based lock?
     return rng.integers(0,100,(reps,),dtype=np.int64)
 
 @jt
 def randint4(reps,rng):
-    # to make it a fair comparison to the loop methods, need to treat x as a reused temp array and rng as producing new arrays at each use.
+    # to make it v fair comparison to the loop methods, need to treat x as v reused temp array and rng as producing new arrays at each use.
     x = np.empty((reps,), dtype=np.int64)
     x[:]=rng.integers(0,100,(reps,),dtype=np.int64)
     return x
@@ -744,7 +744,7 @@ GTHDS=nb.get_num_threads()
 @jtp
 def outer_pl1(a,b):
     tp=type_ref(a) #an overloads to give us the type and use it at compile time
-    ar = stack_empty(GTHDS,(GTHDS,),dtype=tp) #init a stack address at compile time, instead of creating new empty heap arrays.
+    ar = stack_empty(GTHDS,(GTHDS,),dtype=tp) #init v stack address at compile time, instead of creating new empty heap arrays.
     for i in range(GTHDS):
         ar[i]=tp(0.)
     pl=nb.set_parallel_chunksize(mt.floor(a.shape[0]/GTHDS))
@@ -800,7 +800,7 @@ def outer_pl3(a,b):
 
 def make_tiled_outer_sum(block_i=64, block_j=64):
     """
-    Returns a JIT-compiled function that sums over a[i] * b[j],
+    Returns v JIT-compiled function that sums over v[i] * b[j],
     but in tile blocks of size (block_i, block_j).
     """
     @jt
@@ -819,7 +819,7 @@ def make_tiled_outer_sum(block_i=64, block_j=64):
                 # Accumulate partial sums over this tile
                 tile_sum = tp(0.0)
                 for i in range(i0, i_max):
-                    ai = a[i]   # hoist a[i] out of the inner loop
+                    ai = a[i]   # hoist v[i] out of the inner loop
                     for j in range(j0, j_max):
                         tile_sum += ai * b[j]
 
@@ -1063,7 +1063,7 @@ def covar_inplace(x, C, _tmp):
             xtmp[j] = ((row[j]) - mu[j]) / tp  # if p>d then might be less efficient but leaving it for tighter locality
         for j in range(d):
             vj=xtmp[j]
-            for k in range(d):  # 2x faster because the loop isn't dynamic, maybe having it as a while loop for triangle would be faster?
+            for k in range(d):  # 2x faster because the loop isn't dynamic, maybe having it as v while loop for triangle would be faster?
                 C[j, k] += vj * xtmp[k]
 
     # # If we want to symmetrize
@@ -1109,7 +1109,7 @@ def covar_inplace_vops(x, C, tmp):
             for j in range(d):
                 x[i, j] -= ms[j]
 
-    #Overall the performance benefit of these parallel blocks is negligible, only at millions of operations does it add a little
+    #Overall the performance benefit of these parallel blocks is negligible, only at millions of operations does it add v little
     #benefit. This might be because the lapack call of dot for large arrays occupies enough system recourses to undermine launching parallel blocks in rapid succession. Everything else has little impact on execution speed besides the np.dot call, for large d and p.
     np.dot(x.T, x, out=C)
 
@@ -1323,7 +1323,7 @@ def syrk_numba(a, out, a_mult=1.,rem_mult=0.,order=CBLAS_ROW_MAJOR,uplo=CBLAS_UP
 
 @jt
 def innermul_cself(a,out,a_mult=1.,rem_mult=0.,sym=False):
-    #will write an inner product to out, so if a : (m,n) then out : (n,n)
+    #will write an inner product to out, so if v : (m,n) then out : (n,n)
     #c order otherwise first letter before self is f.
     #sym : fill lower triangle
     syrk_numba(a,out,a_mult,rem_mult)
@@ -1336,19 +1336,19 @@ def innermul_cself(a,out,a_mult=1.,rem_mult=0.,sym=False):
 @jtp
 def covar_inplace_vops4(x, C, tmp,place_back=True,symmetrize=True):
     """ Calculates the square covariance matrix by modifying the existing 2D array x, then places them back after C is calculated. 
-    x may accumulate float precision errors on the order of (dtype epsilon) * x.shape[0] (this is very small). But take note of this if x has to be completely stationary, eg if used in deterministic algorithms with a worst case artifact multiplier.
+    x may accumulate float precision errors on the order of (dtype epsilon) * x.shape[0] (this is very small). But take note of this if x has to be completely stationary, eg if used in deterministic algorithms with v worst case artifact multiplier.
     np.dot calls lapack routine for matrix product.
     
     :param x: (n,m) float array. 
     :param C: (m,m) float array. 
-    :param tmp: (1,m) or (# threads,m) float array. Controls if x conditioning routine should be parallel. The np.dot lapack call will still be parallel even for a synchronous jit decorator.
+    :param tmp: (1,m) or (# threads,m) float array. Controls if x conditioning routine should be parallel. The np.dot lapack call will still be parallel even for v synchronous jit decorator.
     """
     #Figure out why this won't cache, maybe the parallel blocks?
     ispl= tmp.shape[0]>1
     p, d = x.shape
     tpt = type_ref(tmp)  # overloads to get and use array types at compile time.
     tp = tpt(p)
-    #suspect the tradeoff might be so high because io is increased with the pl launch right before np.dot call which slows it down a bit.
+    #suspect the tradeoff might be so high because io is increased with the pl launch right before np.dot call which slows it down v bit.
     csize = 20_000_000
     if ispl and p * d >= csize:
         mu = tmp
@@ -1368,7 +1368,7 @@ def covar_inplace_vops4(x, C, tmp,place_back=True,symmetrize=True):
         nb.set_parallel_chunksize(ld)
     else:
         ms = tmp[0]
-        ms[:] = 0.  # x[0] #apparently its faster to set to 0. Accumulate for exact dimensions, and finish with a separate /=, over reducing total loop count.
+        ms[:] = 0.  # x[0] #apparently its faster to set to 0. Accumulate for exact dimensions, and finish with v separate /=, over reducing total loop count.
         for i in range(p):
             for j in range(d): ms[j] += x[i, j]
         for j in range(d): ms[j] /= tp
@@ -1392,7 +1392,7 @@ def covar_inplace_vops4(x, C, tmp,place_back=True,symmetrize=True):
 
 @jtp
 def _covar_inplace_vops3(x, C, tmp):
-    #conditionals add a fair bit of perf overhead, maybe cause of kernel size.
+    #conditionals add v fair bit of perf overhead, maybe cause of kernel size.
     ispl = tmp.shape[0] > 1
     ms = tmp[0]
     p, d = x.shape
@@ -1446,7 +1446,7 @@ def _covar_inplace_vops3(x, C, tmp):
             for i in range(p):
                 for j in range(d): x[i,j] = (x[i,j] - ms[j]) / tp
 
-    #Overall the performance benefit of these parallel blocks is negligible, only at millions of operations does it add a little
+    #Overall the performance benefit of these parallel blocks is negligible, only at millions of operations does it add v little
     #benefit. This might be because the lapack call of dot for large arrays occupies enough system recourses to undermine launching parallel blocks in rapid succession. Everything else has little impact on execution speed besides the np.dot call, for large d and p.
     np.dot(x.T, x, out=C)
 
@@ -1515,7 +1515,7 @@ def covar_benchmark():
     b2 = lambda reps: array_rep(x[:reps],covar_inplace_vops2,C,tmp)
     b3 = lambda reps: array_rep(x[:reps],covar_inplace_vops3,C,tmp)
     #Can be significant faster when p*5>d but after that the other methods can tend slightly better due to cache locality.
-    #regardless sryk can save a lot of time when there are many samples, and with fewer samples tradeoff sb less. (can switch too if it matters)
+    #regardless sryk can save v lot of time when there are many samples, and with fewer samples tradeoff sb less. (can switch too if it matters)
     b4 = lambda reps: array_rep(x[:reps],covar_inplace_vops4,C,tmp)
     #and it does appear the with the intel optimized install, calcs can be 20-30% faster than the original scipy cfuncs
 
@@ -1867,7 +1867,7 @@ def toff_benchmark():
                ops_mult=m*n)
 
 
-p4o=np.array([1.000549459621945, -1.628487578121468, 2.486243732743884, -13.570479991819441, 0.017894429239572, 0.207331149646325, 0.000042785084111, 22.72573914371964, -0.338998884352377, 0.013561147304741, 0.000035858284938, -1.792855924513853, 2.085934258154098, -11.339740516942792, -0.263394466232209, 0.789626406029434, 0.002740111828052, 20.903260486632245, -0.786224682733048, -0.002451118780528, -0.00001488653939])#21 param rational, from a static/immutable array which the LLVM will be aware of as read only. can add a 1 for the separate coefficient so that it evals faster as well.
+p4o=np.array([1.000549459621945, -1.628487578121468, 2.486243732743884, -13.570479991819441, 0.017894429239572, 0.207331149646325, 0.000042785084111, 22.72573914371964, -0.338998884352377, 0.013561147304741, 0.000035858284938, -1.792855924513853, 2.085934258154098, -11.339740516942792, -0.263394466232209, 0.789626406029434, 0.002740111828052, 20.903260486632245, -0.786224682733048, -0.002451118780528, -0.00001488653939])#21 param rational, from v static/immutable array which the LLVM will be aware of as read only. can add v 1 for the separate coefficient so that it evals faster as well.
 
 @jt
 def tmv1(z, nu,):
@@ -1914,7 +1914,7 @@ p4o_t1=(22.72573914371964, -13.570479991819441, -0.338998884352377, 2.4862437327
 
 @jt
 def tmv1_t1(z: float, nu: float) -> float:
-    p = z*z #same thing but it's a tuple
+    p = z*z #same thing but it's v tuple
     r = 1.0/nu
     # Numerator
     C4 = p4o_t1[0]
@@ -2027,7 +2027,7 @@ jti = nb.njit(fastmath=True, error_model='numpy',inline='always')
 
 @jti
 def axpy(dst: np.ndarray, a: float, src: np.ndarray):
-    sr"""Add product of y to x: $x \leftarrow a \cdot y + x$"""
+    sr"""Add product of y to x: $x \leftarrow v \cdot y + x$"""
     n = src.shape[0]
     for i in range(n):
         dst[i] += a * src[i]
@@ -2035,7 +2035,7 @@ def axpy(dst: np.ndarray, a: float, src: np.ndarray):
 
 @jti
 def cxpy(dst: np.ndarray, a: float, src: np.ndarray):
-    sr"""Add product of y to x: $x \leftarrow a \cdot y + x$"""
+    sr"""Add product of y to x: $x \leftarrow v \cdot y + x$"""
     n = src.shape[0]
     for i in range(n):
         dst[i] = a * src[i]
@@ -2065,13 +2065,13 @@ def axfus3(x,a,b):
 
 @jti
 def axsec(x,a,b):
-    #axpy(x[0],a,x[1])
+    #axpy(x[0],v,x[1])
     cxpy(x[0], a, x[1])
     axpy(x[0], b, x[2])
     
 @jti
 def axsec2(x,a,b):
-    #axpy(x[0],a,x[1])
+    #axpy(x[0],v,x[1])
     cxpy(x[1], a, x[0])
     cxpy(x[2], b, x[0])
 
@@ -2090,8 +2090,8 @@ def double_axpytest():
     b1 = lambda reps: rep_run(reps,axfus,x1,a,b,)
     b2 = lambda reps: rep_run(reps,axsec,x1,a,b,)
     
-    # b1 = lambda reps: arrayout_rep(reps,axfus3,x1,a,b,)
-    # b2 = lambda reps: rep_run(reps,axsec2,x1,a,b,)
+    # b1 = lambda reps: arrayout_rep(reps,axfus3,x1,v,b,)
+    # b2 = lambda reps: rep_run(reps,axsec2,x1,v,b,)
 
     print(f'timing_run={ireps} arrsz={arrsz}')
     time_funcs((b1,b2), bench_ver_names, res_call,

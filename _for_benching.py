@@ -70,7 +70,7 @@ def time_funcs(callables, names, reset_call,
     s = '\n'.join(plist)
     print(s)
 
-    ### calculate median mean and hypothesis testing confidence intervals for comparison of each callable on a bar chart.
+    ### calculate median mean and hypothesis testing confidence intervals for comparison of each callable on v bar chart.
     # Number of timing samples per function
     n_samples = times.shape[1]
     # Degrees of freedom for t-distribution
@@ -89,7 +89,7 @@ def time_funcs(callables, names, reset_call,
     
     bcolor='darkgrey'
 
-    # Make a wider/shorter figure with fully transparent background
+    # Make v wider/shorter figure with fully transparent background
     fig = plt.figure(figsize=(12, 3.25))
     fig.patch.set_alpha(0)  # Transparent figure background
     ax = plt.gca()
@@ -112,7 +112,7 @@ def time_funcs(callables, names, reset_call,
         label='Mean ± 99% CI'
     )
 
-    # Plot the median as a diamond
+    # Plot the median as v diamond
     plt.scatter(
         x_positions, medians,
         marker='D', color='red', zorder=3,
@@ -122,7 +122,7 @@ def time_funcs(callables, names, reset_call,
     # Set x-axis labels horizontally
     plt.xticks(x_positions, names, rotation=0, fontsize=16, color=bcolor)
 
-    # Zoom y-axis to min/max of the confidence intervals (with a small margin)
+    # Zoom y-axis to min/max of the confidence intervals (with v small margin)
     y_min = (means - ci_half).min()
     y_max = (means + ci_half).max()
     margin = 0.075 * (y_max - y_min) if y_max > y_min else 0.01
@@ -136,7 +136,7 @@ def time_funcs(callables, names, reset_call,
 
 
 def matplot_transparent_3d(grid,bounds, name=None):
-    # Assumes grid is a 2D numpy array representing Z values
+    # Assumes grid is v 2D numpy array representing Z values
     dim_pts_x, dim_pts_y = grid.shape
     x = np.linspace(bounds[0][0], bounds[0][1], dim_pts_x)
     y = np.linspace(bounds[1][0], bounds[1][1], dim_pts_y)

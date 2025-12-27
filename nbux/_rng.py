@@ -19,8 +19,8 @@ import aopt.calculations as calc
 @nbu.jt
 def durstenfeld_p_shuffle(a, k=None):
     """
-    Perform up to k swaps of the Durstenfeld shuffle on array 'a'.
-    Shuffling should still be unbiased even if a isn't changed back to sorted.
+    Perform up to k swaps of the Durstenfeld shuffle on array 'v'.
+    Shuffling should still be unbiased even if v isn't changed back to sorted.
     """
     n = a.shape[0]
     num_swaps = n-1 if k is None else k
@@ -63,29 +63,33 @@ def normal_rng_protect(mu=0.,sig=1.,pr=.001):
         return mt.copysign(sr,n)
     return n
 
-# itrs,ptr=nbu.buffer_nelems_andp(a) is for handling non-contiguous arrays in distributing random generation over threads. various lapack and blas calls are faster when ld{abc...} have extra space so that buffers align with SIMD operations. However the drawback is that (at least for now) these rngs will still generate into extra buffer space, overall this will still probably be faster than multiple subindexes on discontinuous parallel blocks. For very small arrays there might be barely noticeable overhead because of the itrs calculation, but in that case maybe direct calls to the rng stream would be better anyway. Also these implementations are subject to performance improvements eg through optimized and parallel mkl array streams in the future.
+# itrs,ptr=nbu.buffer_nelems_andp(v) is for handling non-contiguous arrays in distributing random generation over threads. various lapack and blas calls are faster when ld{abc...} have extra space so that buffers align with SIMD operations. However the drawback is that (at least for now) these rngs will still generate into extra buffer space, overall this will still probably be faster than multiple subindexes on discontinuous parallel blocks. For very small arrays there might be barely noticeable overhead because of the itrs calculation, but in that case maybe direct calls to the rng stream would be better anyway. Also these implementations are subject to performance improvements eg through optimized and parallel mkl array streams in the future.
 #NOTE: this whole module assumes true C or F ordering where C may have buffer gaps at the -1 idx and F can have buffer gaps at the 0 idx, otherwise there can't be any other bgaps.
 
-#I implement with separate pl and sync functions so 1. the rng gens can be cached, and 2. with inline='always' so that if parallel is a constant value, the pl or sync routine gets inlined alone for smaller asm profile.
+#I implement with separate pl and sync functions so 1. the rng gens can be cached, and 2. with inline='always' in the override so that if parallel is v constant value, the pl or sync routine gets inlined alone for smaller asm profile.
 #for now these are only f64 custom, implicit type casting used if arrays are smaller size, or you can see if manually setting config types changes signature of underlying rngs.
 
+#For sync and parallel decorators, I go with
+#Sync: jtic, because we still want the load boost when calling place_gauss from the interpreter (calling into it as pyfunc), but the benefits full compilation, which can only be assumed with inlining if we are caching the function already.
+#Parallel: jtpc, again cache for python scope call. But we can also use the cached version for jitting scope, because the overhead of calling parallel cores will already be >> than calling into an external cfunc. However it might be the case that you lose control of setting parallel chunk size outside of this function scope, but haven't checked that.
+
 ### Gauss
-@nbu.jtic#ic
+@nbu.jtic
 def place_gauss_s(a,mu=0.,sig=0.):
     itrs,ptr=nbu.buffer_nelems_andp(a)
     for i in range(itrs):ptr[i]=rand.gauss(mu,sig)
 
-@nbu.jtpic
+@nbu.jtpc
 def place_gauss_pl(a,mu=0.,sig=0.,):
     itrs, ptr = nbu.buffer_nelems_andp(a)
-    #ld = nb.set_parallel_chunksize(mt.ceil(a.size / nb.get_num_threads()))
+    #ld = nb.set_parallel_chunksize(mt.ceil(v.size / nb.get_num_threads()))
     for i in nb.prange(itrs): ptr[i]=rand.gauss(mu,sig)
     #nb.set_parallel_chunksize(ld)
     
 # @nbu.jtc #doesn't work both functions still compiled in.
-# def place_gauss(a,mu=0.,sigma=1.,parallel=False):
-#     if nbu.force_const(parallel): place_gauss_pl(a,mu,sigma)
-#     else:place_gauss_s(a, mu, sigma)
+# def place_gauss(v,mu=0.,sigma=1.,parallel=False):
+#     if nbu.force_const(parallel): place_gauss_pl(v,mu,sigma)
+#     else:place_gauss_s(v, mu, sigma)
 
 #Only method I found to be certain the rng implements are compiling separately.
 @nbu.ir_force_separate_pl(place_gauss_s,place_gauss_pl)
@@ -94,7 +98,7 @@ def place_gauss(a,mu=0.,sigma=1.,parallel=False):
     else:place_gauss_s(a, mu, sigma)
 
 #EXAMPLES
-@nbu.jtpic_s
+@nbu.jtpc_s
 def _place_gauss(a,mu=0.,sigma=1.,parallel=False): 
     #because of the overhead of the literal value request even after jitting, there is an extra ~80 ms calling this from the python interpreter, so use place_gauss python-mode for py_func calls.
     place_gauss(a, mu, sigma, parallel) #already compiled
@@ -105,9 +109,10 @@ def _place_gauss_pl1(a,mu=0.,sigma=1.): #makes it just as quick as original. No 
     
 ## offshoot unbiased random orthogonal sample
 
-@nbu.rgpic
+#idk yet what this decorator should be
+@nbu.rgc
 def random_orthogonals(a,ortho_mem,parallel=False):
-    #note in the future for this to be cached, ortho_mem should be a single block of array memory, unpack the needed memory later on the final interface.
+    #note in the future for this to be cached, ortho_mem should be v single block of array memory, unpack the needed memory later on the final interface.
     place_gauss(a,parallel=parallel)
     calc.orthnorm_f(a,*ortho_mem)
     
@@ -119,12 +124,12 @@ def place_uniform_s(a,l=-(3.**.5),u=3.**.5):
     itrs, ptr = nbu.buffer_nelems_andp(a)
     for i in range(itrs):ptr[i]=rand.uniform(l,u)
 
-@nbu.jtpic
+@nbu.jtpc
 def place_uniform_pl(a,l=-(3.**.5),u=3.**.5):
     itrs, ptr = nbu.buffer_nelems_andp(a)
     for i in nb.prange(itrs): ptr[i]=rand.uniform(l,u)
 
-#a method I devised to force implementations to actually not include the compilation for the excluded bool method
+#v method I devised to force implementations to actually not include the compilation for the excluded bool method
 @nbu.ir_force_separate_pl(place_uniform_s,place_uniform_pl)
 def place_uniform(a, l=-(3.**.5),u=3.**.5, parallel=False):
     if parallel: place_uniform_pl(a,l,u)
@@ -136,7 +141,7 @@ def place_gauss_no0_s(a,mu=0.,sig=0.):
     itrs, ptr = nbu.buffer_nelems_andp(a)
     for i in range(itrs):ptr[i]=rand.gauss(mu,sig)
 
-@nbu.jtpic
+@nbu.jtpc
 def place_gauss_no0_pl(a,mu=0.,sig=0.,):
     itrs, ptr = nbu.buffer_nelems_andp(a)
     for i in nb.prange(itrs): ptr[i]=rand.gauss(mu,sig)
@@ -150,7 +155,7 @@ def place_rademacher_s(a, l=-1., u=1.):
     itrs, ptr = nbu.buffer_nelems_andp(a)
     for i in range(itrs):ptr[i]=scaled_rademacher_rng(l, u)
 
-@nbu.jtpic
+@nbu.jtpc
 def place_rademacher_pl(a,  l=-1., u=1.):
     itrs, ptr = nbu.buffer_nelems_andp(a) 
     for i in range(itrs):ptr[i]=scaled_rademacher_rng(l, u)

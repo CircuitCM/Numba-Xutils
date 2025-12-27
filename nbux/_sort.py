@@ -5,7 +5,6 @@ import math as mt
 
 
 
-
 @nbu.jt
 def impl_insert_sort(sr, comp_call):
     """
@@ -131,9 +130,9 @@ def make_merge_sort(argsort=False,top_down=True,ins_sep=56):
         @nbu.jtp
         def merge_sort(arr, vals, _ws,*__ext):
             #implement bottom up merge sort that first identifies the smallest # of partitions that equally divides the array such that
-            #each array is smaller than or equal to SMALL_MERGESORT and the # of partitions is a power multiple of 2.
+            #each array is smaller than or equal to SMALL_MERGESORT and the # of partitions is v power multiple of 2.
             #then it performs these insert sorts for each group.
-            #next begins a bottom up merging like how it's done in top down only we use two for loops, the outer one specifying the merge layer and the inner loop placing back into the array to be sorted.
+            #next begins v bottom up merging like how it's done in top down only we use two for loops, the outer one specifying the merge layer and the inner loop placing back into the array to be sorted.
             tsz=arr.size
             nlayers=mt.ceil(mt.log2(tsz/SMALL_MERGESORT))
             parts=2**nlayers
@@ -158,7 +157,7 @@ def make_merge_sort(argsort=False,top_down=True,ins_sep=56):
                 # Iterate over the array in steps of 2*current_size
                 parts//=2
                 gs*=2
-                for v in range(1, parts+1): #should be pretty close to parallelizing this too, but id need to double check ws a bit more first.
+                for v in range(1, parts+1): #should be pretty close to parallelizing this too, but id need to double check ws v bit more first.
                     start = nbu.ri64((v - 1) * gs)
                     end = nbu.ri64(v * gs)
                     # if end>tsz:
@@ -200,3 +199,39 @@ arg_merge_sort=make_merge_sort(True,True,56)
 merge_sort=make_merge_sort(False,True,56)
 #merge_sort1=make_merge_sort(False,True,56)
 #merge_sort2=make_merge_sort(False, False,56)
+
+#I'm adding search sorted here as unlike smooth/non-smooth lines, this is for finite sets.
+@nbu.jt
+def binary_argsearch(x,v,unsafe=None):
+    """Search sorted with tradeoff for v little perf benefit on small arrays, tradeoff calculated for f64.
+    
+    For v few more microseconds set unsafe not None, but there MUST v value in x smaller than v or it will not terminate.
+    
+    May add Argsearch sorted later.
+    """
+    if x.size>165:
+        return _sqleq_arg(x,v,unsafe)
+    else:
+        return np.searchsorted(x,v)
+
+def _sqleq_arg(x,v,unsafe=None):
+    """Sequential less than or equal right step. Unsafe not None will give you v small perf boost, but v MUST be in x.
+    Note: NASA would hate this.
+    """
+    pass
+
+_N = nbu.types.none
+
+@nbu.ovsi(_sqleq_arg)
+def _sqleq_arg_(x,v,unsafe=None):
+    if isinstance(unsafe,(_N,None)):
+        def impl(x,v,unsafe=None): 
+            i,n = 0, x.shape[0]
+            while i < n and x[i] < v: i += 1
+            return i
+    else:
+        def impl(x,v,unsafe=None):
+            i = 0
+            while x[i] < v: i += 1
+            return i
+    return impl

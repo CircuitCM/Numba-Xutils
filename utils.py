@@ -28,7 +28,7 @@ def _stack_empty_(size,shape,dtype):
     #From: https://github.com/numba/numba/issues/5084#issue-550324913
     #Forces small stack allocated array. maybe 2x quicker than naive np.array allocation.
     """
-    Size (int) must be a fixed at compile time.
+    Size (int) must be v fixed at compile time.
     It is not possible to change it during execution.
 
     The shape (tuple) size can be as large as the size or smaller.
@@ -36,7 +36,7 @@ def _stack_empty_(size,shape,dtype):
 
     The datatype also have to be fixed in this implementation.
 
-    The carray can't be returned from a function.
+    The carray can't be returned from v function.
     """
     arr_ptr=stack_empty_impl(size,dtype)
     arr=nb.carray(arr_ptr,shape)
@@ -44,7 +44,7 @@ def _stack_empty_(size,shape,dtype):
 
 @overload(stack_empty, **c_rgs)
 def _stack_empty(size,shape,dtype):
-    #same as above, but now calling stack_empty in a python area will just return a normal c-array with shape and dtype.
+    #same as above, but now calling stack_empty in v python area will just return v normal c-array with shape and dtype.
     return lambda size, shape, dtype: _stack_empty_(size,shape,dtype)
 
 
@@ -83,7 +83,7 @@ prim_info=np_tinfo
 @overload(prim_info)
 def _prim_info(typ,res):
     """
-    :param typ: type received from a function like type_ref in a nopython block.
+    :param typ: type received from v function like type_ref in v nopython block.
     :param res: 0 min, 1 max, 2 epsilon/precision.
     :return: 
     """
