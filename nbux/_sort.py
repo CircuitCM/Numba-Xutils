@@ -1,3 +1,4 @@
+
 import numba as nb
 import numpy as np
 import nbux._utils as nbu
@@ -203,9 +204,9 @@ merge_sort=make_merge_sort(False,True,56)
 #I'm adding search sorted here as unlike smooth/non-smooth lines, this is for finite sets.
 @nbu.jt
 def binary_argsearch(x,v,unsafe=None):
-    """Search sorted with tradeoff for v little perf benefit on small arrays, tradeoff calculated for f64.
+    """Search sorted with tradeoff for a little perf benefit on small arrays, tradeoff calculated for f64.
     
-    For v few more microseconds set unsafe not None, but there MUST v value in x smaller than v or it will not terminate.
+    For a few more microseconds set unsafe not None, but there MUST be a value in x smaller than v or it will not terminate.
     
     May add Argsearch sorted later.
     """
@@ -215,12 +216,13 @@ def binary_argsearch(x,v,unsafe=None):
         return np.searchsorted(x,v)
 
 def _sqleq_arg(x,v,unsafe=None):
-    """Sequential less than or equal right step. Unsafe not None will give you v small perf boost, but v MUST be in x.
+    """Sequential less than or equal right step. Unsafe not None will give you a small perf boost, but v MUST be in x.
     Note: NASA would hate this.
     """
     pass
 
 _N = nbu.types.none
+
 
 @nbu.ovsi(_sqleq_arg)
 def _sqleq_arg_(x,v,unsafe=None):
@@ -228,6 +230,7 @@ def _sqleq_arg_(x,v,unsafe=None):
         def impl(x,v,unsafe=None): 
             i,n = 0, x.shape[0]
             while i < n and x[i] < v: i += 1
+            
             return i
     else:
         def impl(x,v,unsafe=None):

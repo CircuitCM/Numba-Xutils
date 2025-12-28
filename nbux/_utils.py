@@ -1,8 +1,9 @@
+
+
 from typing import Sequence, Callable
 
 from numba.np.numpy_support import as_dtype
 
-import aopt.utils.configs as cfg
 import numpy as np
 import numba as nb
 from numba import types
@@ -235,7 +236,7 @@ def buffer_nelems_andp(arr):
     """This is basically a method to get the gaps in a discontinuous array. It's a method to return the contiguous backing array to be used for iterations where mutation of the discontinuous portion isn't actually relevant but can improve total loop performance through vectorized contiguous blocks."""
     ptr=nb_array_ptr(arr)
     size = arr.size
-    if arr.ndim<2:return size,ptr
+    if arr.ndim<2:return size,ptr # noqa: E701
     # fast C vs F test via stride magnitudes
     s1,s2=(-1,-2) if abs(arr.strides[0]) >= abs(arr.strides[-1]) else (0,1) #we use this to detect if C or F ordered
     tail_prod = size // arr.shape[s1]
@@ -313,7 +314,7 @@ def type_ref(arg):
 
 @ovsic(type_ref)
 def _type_ref(arg):
-    """"""
+    """Numba overloads for type_ref."""
     #now supports primitive types, literals and array memory type.
     if isinstance(arg,types.Literal): #we should never even get this result
         typ=arg._literal_type_cache
@@ -326,6 +327,7 @@ def _type_ref(arg):
         return lambda arg: typ
 
 def if_val_cast(typ,val):
+    
     if isinstance(val,(np.ndarray,Sequence)):
         return val
     else:
@@ -333,6 +335,7 @@ def if_val_cast(typ,val):
 
 @ovsic(if_val_cast)
 def _if_val_cast(typ,val):
+    """Overloads impl."""
     if isinstance(val,types.IterableType):return lambda typ,val:val
     else:return lambda typ,val:typ(val)
     
@@ -393,6 +396,9 @@ def aligned_buffer(n_bytes: int, align: int = 64) -> np.ndarray:
     A slightly oversized buffer is allocated and then *manually aligned* by
     slicing so that ``result.ctypes.data % align == 0``. The extra capacity is
     not exposed by the returned view.
+    
+    This function is also in `numpy_buffermap` but adding it here so it's not
+    a needed dependency.
 
     Parameters
     ----------
@@ -400,6 +406,11 @@ def aligned_buffer(n_bytes: int, align: int = 64) -> np.ndarray:
         Logical size of the returned view (in bytes).
     align : int
         Desired byte alignment (power-of-two is assumed).
+        
+    Returns
+    -------
+    offset_buffer : np.ndarray
+        A buffer view that is rounded to a base ``align`` pointer offset.
     """
     raw = np.empty(n_bytes + align, dtype=np.uint8)
     offset = (-raw.ctypes.data) & (align - 1)
@@ -410,20 +421,25 @@ def aligned_buffer(n_bytes: int, align: int = 64) -> np.ndarray:
 
 def prim_info(dt, field):
     """
-    Return type-specific info for NumPy type `dt`, given integer field selector.
+    Return type-specific info for NumPy type ``dt``, given integer field selector.
+    
     (kind, field) match cases:
-      - ('i' or 'u', 0): min
-      - ('i' or 'u', 1): max
-      - ('f', 0): min
-      - ('f', 1): max
-      - ('f', 2): eps
-      - ('b', 0): False
-      - ('b', 1): True
-      - ('c', 0): min (complex with min real/imag)
-      - ('c', 1): max (complex with max real/imag)
-      - ('c', 2): eps (complex with float eps)
-      - (any, 3): itemsize (bytes)
-      - others: None
+    
+    - ('i' or 'u', 0): min
+    - ('i' or 'u', 1): max
+    - ('f', 0): min
+    - ('f', 1): max
+    - ('f', 2): eps
+    - ('b', 0): False
+    - ('b', 1): True
+    - ('c', 0): min (complex with min real/imag)
+    - ('c', 1): max (complex with max real/imag)
+    - ('c', 2): eps (complex with float eps)
+    - (any, 3): itemsize (bytes)
+    - others: None
+      
+    This only supports np.dtype object instances, or anything with the kind field. 
+    So get the type first with ``type_ref``.
     """
     if not hasattr(dt, 'kind'):
         dt = np.dtype(dt)
@@ -453,7 +469,7 @@ np_tinfo=prim_info
 @ovsic(prim_info)
 def _prim_info(typ,res):
     """
-    Primitives info.
+    Overloads for primitives info. Implementation for numba mode.
     
     :param typ: type received from a function like type_ref in a nopython block.
     :param res: 0 min, 1 max, 2 epsilon/precision.
@@ -462,13 +478,13 @@ def _prim_info(typ,res):
     if isinstance(res,(nb.types.Literal,int)):
         ref=res if type(res) is int else res.literal_value
         tpref=as_dtype(typ)
-        #tpref=np.dtype(str(typ.dtype)) #gives us the underlying primitive type. maybe use numbas np_support func tho.
         infoval=np_tinfo(tpref,ref) #where we query 
         return lambda typ,res: infoval
-    return lambda typ,res:nb.literally(res)
+    return lambda typ,res:nb.literally(res) #literal value request makes this compile time but still cacheable.
 
-@jti
+@jtic
 def placerange(r,start=0,step=1):
+    """Like numpy arange but for existing arrays. Start and step may be float values."""
     for i in range(r.shape[0]):
         r[i] = start + i*step
 
@@ -476,12 +492,22 @@ def placerange(r,start=0,step=1):
 
 @rgi
 def swap(x,i,j):
+    """Array element swap shorthand."""
     t=x[i]
     x[i]=x[j]
     x[j]=t
     
 
-def force_const(val): return val
+def force_const(val): 
+    """Within a numba block this forces referenced variables to become literal, mainly 
+    kwargs and args from the function header. Numba procedures compiled with a 
+    ``force_const`` will still cache, but it seems that it will not save signatures with
+    different values meaning it will recompile from the python scope each time the value
+    is changed. This is true even before the interpreter restarts.
+    
+    Therefore ``force_const`` may not have a meaningful use case.
+    """
+    return val
 @ovs(force_const)
 def _force_const(val):
     if isinstance(val,types.Literal):
@@ -496,11 +522,19 @@ def run(func,*args,**kwargs):
     return func(*args,**kwargs)
 
 def run_py(func,*args,**kwargs):
+    """Numba's base python definition is inside the ``py_func`` field, if it exists we try to call it here."""
     if hasattr(func,'py_func'):
         func = func.py_func
     run(func,*args,**kwargs)
 
 def run_fallback(func,*args,verbose=False,**kwargs):
+    """First attempts to call the numba dispatcher in fully compiled (no-python) mode.
+    
+    If that fails it tries to run it as a python function. Even if the function signature isn't
+    supported in no-python, it can still provide performance benefits as the numba subroutines
+    will be compiled separately.
+    
+    """
     try:
         return run(func,*args,**kwargs)
     except:

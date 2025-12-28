@@ -20,7 +20,7 @@ import aopt.calculations as calc
 def durstenfeld_p_shuffle(a, k=None):
     """
     Perform up to k swaps of the Durstenfeld shuffle on array 'v'.
-    Shuffling should still be unbiased even if v isn't changed back to sorted.
+    Shuffling should still be unbiased even if a isn't changed back to sorted.
     """
     n = a.shape[0]
     num_swaps = n-1 if k is None else k
@@ -66,7 +66,7 @@ def normal_rng_protect(mu=0.,sig=1.,pr=.001):
 # itrs,ptr=nbu.buffer_nelems_andp(v) is for handling non-contiguous arrays in distributing random generation over threads. various lapack and blas calls are faster when ld{abc...} have extra space so that buffers align with SIMD operations. However the drawback is that (at least for now) these rngs will still generate into extra buffer space, overall this will still probably be faster than multiple subindexes on discontinuous parallel blocks. For very small arrays there might be barely noticeable overhead because of the itrs calculation, but in that case maybe direct calls to the rng stream would be better anyway. Also these implementations are subject to performance improvements eg through optimized and parallel mkl array streams in the future.
 #NOTE: this whole module assumes true C or F ordering where C may have buffer gaps at the -1 idx and F can have buffer gaps at the 0 idx, otherwise there can't be any other bgaps.
 
-#I implement with separate pl and sync functions so 1. the rng gens can be cached, and 2. with inline='always' in the override so that if parallel is v constant value, the pl or sync routine gets inlined alone for smaller asm profile.
+#I implement with separate pl and sync functions so 1. the rng gens can be cached, and 2. with inline='always' in the override so that if parallel is a constant value, the pl or sync routine gets inlined alone for smaller asm profile.
 #for now these are only f64 custom, implicit type casting used if arrays are smaller size, or you can see if manually setting config types changes signature of underlying rngs.
 
 #For sync and parallel decorators, I go with
@@ -112,7 +112,7 @@ def _place_gauss_pl1(a,mu=0.,sigma=1.): #makes it just as quick as original. No 
 #idk yet what this decorator should be
 @nbu.rgc
 def random_orthogonals(a,ortho_mem,parallel=False):
-    #note in the future for this to be cached, ortho_mem should be v single block of array memory, unpack the needed memory later on the final interface.
+    #note in the future for this to be cached, ortho_mem should be a single block of array memory, unpack the needed memory later on the final interface.
     place_gauss(a,parallel=parallel)
     calc.orthnorm_f(a,*ortho_mem)
     
@@ -129,7 +129,7 @@ def place_uniform_pl(a,l=-(3.**.5),u=3.**.5):
     itrs, ptr = nbu.buffer_nelems_andp(a)
     for i in nb.prange(itrs): ptr[i]=rand.uniform(l,u)
 
-#v method I devised to force implementations to actually not include the compilation for the excluded bool method
+#A method I devised to force implementations to actually not include the compilation for the excluded bool method
 @nbu.ir_force_separate_pl(place_uniform_s,place_uniform_pl)
 def place_uniform(a, l=-(3.**.5),u=3.**.5, parallel=False):
     if parallel: place_uniform_pl(a,l,u)

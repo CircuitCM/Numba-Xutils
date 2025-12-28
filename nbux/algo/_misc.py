@@ -42,7 +42,7 @@ def gershgorin_l1_norms(A,t1,t2):
     return an, diag, rad
 
 
-@nbu.jtnc #this cant take v parallel decorator for some reason but that's not v problem I think.
+@nbu.jtnc #this cant take a parallel decorator for some reason but that's not a problem I think.
 def lars1_constraintsolve(A, y, out,
                           At, T1, T2, T3, C, I, Ib,  # required memory.
                           eps=1e-10, l2cond=-1.):
@@ -115,16 +115,16 @@ def lars1_constraintsolve(A, y, out,
             S2[i] = mt.copysign(1., C[I[i]])
         opi.mmul_cself(At[:atdx], Gt, sym=False, outer=True)  # At perm mem
         # if l2cond!=0.:
-        #conditioner so cholesky shouldn't ever blow up. Also improves results v bit. If it's significantly larger than v roundoff buffer it turns it into v lasso-like solver.
+        #conditioner so cholesky shouldn't ever blow up. Also improves results a bit. If it's significantly larger than a roundoff buffer it turns it into a lasso-like solver.
         opv.dadd(Gt, l2cond * opv.dtrace(Gt) / atdx)
         opi.cholesky_fsolve_inplace(Gt, S2)
-        Ast = T1[:atdx * n].reshape((n,atdx))  # A[:atdx].T which is v view will be non-contiguous, make dot allocate v heap temp buffer, so we will copy it to T1 instead, optimization: change to your own dot call with different lda ranges... actually At[:atdx].T should work fine... that sb contiguous.
+        Ast = T1[:atdx * n].reshape((n,atdx))  # A[:atdx].T which is a view will be non-contiguous, make dot allocate a heap temp buffer, so we will copy it to T1 instead, optimization: change to your own dot call with different lda ranges... actually At[:atdx].T should work fine... that sb contiguous.
         for i in range(atdx):
             for j in range(n):
                 Ast[j, i] = At[i, j]
         # --- Solution instance relations
-        v = np.dot(Ast, S2, out=T3)
-        denr = np.dot(A.T, v, out=T1[-m:]) #this could be copying.. but shouldn't be as v is v vector.
+        a = np.dot(Ast, S2, out=T3)
+        denr = np.dot(A.T, a, out=T1[-m:]) #this could be copying.. but shouldn't be as a is a vector.
 
         # --- update greedy magnitude, find next candidate.
         # Simplified Homotophy index decision.
@@ -215,7 +215,7 @@ def lars1_memspec(sample_size, sample_dims, type_flt=np.float64, alignb=64, buff
 def durstenfeld_p_shuffle(a, k=nbu.prim_info(np.int64,1)):
     """
     Perform up to k swaps of the Durstenfeld shuffle on array 'v'.
-    Shuffling should still be unbiased even if v isn't changed back to sorted.
+    Shuffling should still be unbiased even if a isn't changed back to sorted.
     """
     n = a.shape[0]
     num_swaps = min(k, n - 1)
@@ -248,7 +248,7 @@ import itertools
 
 def edge_sample(bounds, num):
     """
-    Sample points along the edges of v hyperrectangle.
+    Sample points along the edges of a hyperrectangle.
 
     Parameters:
         bounds (list of tuple): Each tuple represents (lower, upper) bounds for that dimension.

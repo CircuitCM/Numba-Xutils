@@ -2,13 +2,13 @@ import nbux._utils as nbu
 from ..op._misc import quadratic_newton_coef
 import math as mt
 import numpy as np
-import numba as nb
 
 
 #For now I'm implementing the safe/bracketing methods with just this stopping criteria: when our point becomes "stationary enough". This is because for a complicated function or high order poly, the point can significantly impact the precision of the function output. However because all of these methods utilize some form of bisection fallback, we at least have a guarantee it will reach a stationary point. Depending on the optimizer there is some risk of premature stopping, but that should be extremely rare. That also means er_tol ~ root_point*(float64 epsilon). May implement a more refined stopping api in the future.
 
 #nbu is my lib that extends numba in helpful ways.
 #math native calls almost always have faster implements than the numpy equivalent, for numba scalar ops. eg mt.copysign. type casting not difference tho.
+
 @nbu.rgi
 def not0_bisect(f_op,lo,hi,max_iters=200,side=1,typ=np.float64):
     """A method that bisects any function by: not zero on left side and zero on right side, or vice versa if side=-1. Returns the value just before the zero boundary."""
@@ -18,11 +18,11 @@ def not0_bisect(f_op,lo,hi,max_iters=200,side=1,typ=np.float64):
     while ict>0:
         f = nbu.op_call_args(f_op, lam)
         if side==1:
-            if f == _0:hi = lam
-            else:lo = lam
+            if f == _0: hi = lam 
+            else: lo = lam
         else:
             if f == _0:lo = lam
-            else:hi = lam
+            else: hi = lam
         lam = 0.5 * (lo + hi)
         ict-=1
     return lo if side==1 else hi
@@ -125,40 +125,57 @@ def _bracketed_secant(f_op, lo, hi, er_tol=1e-14, max_iters=20,sign=1):
     return lam
 
 @nbu.jt
-def signedroot_secant(f_op, lo, hi,br_rate=.5, max_iters=20, sign=1,eager=False,fallb=False,
+def signedroot_secant(f_op:callable, lo:float, hi:float,
+                      br_rate=.5, max_iters=20, sign=1,
+                      eager=False,fallb=False,
                       br_tol=None,er_tol=None,rel_err=True,dtyp=None
-                      ):
+                      )->tuple[float,float,float,int]:
     """A bracketed secant method that achieves (empirically) faster convergence by knowing the sign of the function to the left and right of the root.
-    It also allows us to select if the slope of our root is positive or negative when there are multiple roots. Which corresponds to finding
-    local minima and maxima of the integrated line.
+    It also allows us to select if the slope of our root is positive or negative when there are multiple roots. Which corresponds to finding local maxima or minima of the integrated line.
 
-    The secant method uses the two most recent points instead of the updated lo hi brackets. This typically gets the most out of the 
-    secant method, and demonstrates it's benefit under significant line asymmetry across the root. Convergence is still guaranteed 
-    with bisection bracketing. Assume we know only which lo or hi has a positive sign with regards to the general problem, if left
-    side is positive we are seeking a negatively sloped root sign:=-1 vice versa for right side and positive slope root.
-    Then until the first time sign(value)==-1, we only take a bracketing step; this strategy allows us to converge to a root that has a sign congruent
-    slope in a multi root situation. Eg in a convex problem to a -(slope) root this will always be the left root.
+    The secant method uses the two most recent points with fall back to the third most recent point (if enabled).
+    This typically gets the most out of the secant method, and demonstrates it's benefit
+    under significant variability across the root.
+    Convergence is still guaranteed with bisection bracketing. 
+    Assume we know only which side of the initial bracket
+    lo - hi, 
+    starts off with a positive function value:
+    
+    if lo (left side) is positive we are seeking a negatively sloped root sign:=-1. 
+    For a single root this is like saying f(lo)>f(hi)
+    
+    if hi (right side) is positive we are seeking a positively sloped root sign:=1
+    For a single root f(lo)<f(hi)
+    
+    Because we have assumed left or right is positive already, we will first take steps
+    and not update the bound of the side we take as given.
+    But once sign(value)==-1, we have found the first definite position of our opposite bound
+    this sections off a large part of the search space and guarantees the algorithm will
+    converge to a root with a slope that matches the sign parameter.
 
     Other Notes: Convergence is only guaranteed when there is a single root with a congruent slope in the bracket.
-    However, the likelihood of converging to a congruent root, is still very high due to the initial side rejection strategy explained above,
-    by decreasing the bracketing increment to a range that guarantees sampling a basin br_rate <.5, you once more recover guaranteed
+    However, the likelihood of converging to a congruent root (in a many root scenario),
+    is still very high due to the initial side rejection strategy explained above, by decreasing the bracketing increment to a range that guarantees sampling a basin br_rate <.5, you once more recover guaranteed
     convergence to the signed root.
 
     Variable calculations are all f64.
 
-    :param f_op: Can be a function or a function operator (tuple) that includes its arguments. It receives a single scalar value for the point estimate. 
-    :param br_rate: (0,1). The bracket increment, at .5 it's classic bisection, if you expect roots to be clustered on the right then >.5 might be suitable.
-    Left clustered <.5. But a smaller br_rate should always have more definite convergence.
-    :param sign: =1 we expect to have f(lo)<f(root)<f(hi). if -1 we expect f(lo)>f(root)>f(hi). If this expectation is unknown,
-    it controls the bracketing bias eg if f is all positives and sign=1, then the bracket will reduce from right to left at (1 - br_rate) until
-    reaching hi, if negatives and sign=1 then left to right at br_rate. Note: If both sides are wrong then convergence will not occur in the single root case.
-    :param p_strat: Interpolation strategy
-        0 - Most recent point for lamo
-        1 - least diff of value of lo, hi and lamb/current for lamo
-        2 - current point and closest to zero between lo hi for lamo
-        3 - least distance with current.
-
+    :param callable f_op: Can be a function or a function operator (tuple) that includes its arguments. It receives a single scalar value for the point estimate. 
+    :param lo: Starting lower bound.
+    :param hi: Starting upper bound.
+    :param br_rate: (0,1). The bracket increment, at .5 it's classic bisection, less than .5 it will bracket more conservatively, greater than .5 it's more eager.
+    :param max_iters: The number of function evaluations before the process is forced to terminate prematurely and return the best value so far.
+    :param sign: =1 we expect to have f(lo)<f(root)<f(hi). if -1 we expect f(lo)>f(root)>f(hi). See documentation above.
+    :param eager: While the opposite boundary hasn't been found do we bisect or still use secant? If the opposite bound is not yet located a secant step might push the next point towards the wrong root initially, this could delay root convergence slightly at first, but it will still converge correctly.
+    :param fallb: A secant specific parameter to fall back to interpolation using the opposite boundary.
+    :param br_tol: Bracket fallback tolerance, floating point precision tolerance before the secant interpolation is considered unreliable. If the difference between secant points is less than this we consider it unreliable and fallback to bisection.
+    :param er_tol: If the distance between the most recent two points is less than er_tol, the iterations are considered complete and function returns. Two most recent points are used instead of the lower and upper bound as it better reflects the progress of the secant steps.
+    :param rel_err: Is bracket fallback tolerance based on value relative error or absolute value. Typically value relative is correct unless you know there is a constant error rate in value measurements (e.g. noise or discrete surface).
+    :param dtyp: The data type that the root search should operate with. This will convert all computations and values to this datatype. If left as None, the datatype will be gathered from the input type of lo.
+    
+    :return: The latest root estimate, most recent bracket range and return reason: 0 Success. 1 Failed to converge. 2 No opposite bound located.
     """
+    
     if dtyp is None: dtyp=nbu.type_ref(lo) # which will default to f64 unless dtyp is specified
     if br_tol is None:br_tol=nbu.prim_info(dtyp,2)**(2/3)
     if er_tol is None:er_tol=nbu.prim_info(dtyp,2)**(1/2)
@@ -192,10 +209,10 @@ def signedroot_secant(f_op, lo, hi,br_rate=.5, max_iters=20, sign=1,eager=False,
     while ict > 0:
             fd = (f - fo)
             af=abs(f)
-            nd=abs(fd) > (br_tol*max(af,abs(fo)) if rel_err else br_tol)
+            #nd=
             _k=True
             #first is the precision good enough
-            if nd:
+            if abs(fd) > (br_tol*max(af,abs(fo)) if rel_err else br_tol):
                 if not op_bracket:
                     lamb = (lo * lrt + hi * hrt)
                     _k=False
@@ -203,7 +220,7 @@ def signedroot_secant(f_op, lo, hi,br_rate=.5, max_iters=20, sign=1,eager=False,
                 else:
                     ll,lh=lo,hi
                 lamn = lam - f * (lam - lamo) / fd
-                #if lamn is in bounds  then we skip the next two branches
+                #if lamn is in bounds then we skip the next two branches
                 #otherwise it failed we enter next nd block
                 nd= not (ll < lamn < lh)
             else:nd=True
@@ -215,7 +232,7 @@ def signedroot_secant(f_op, lo, hi,br_rate=.5, max_iters=20, sign=1,eager=False,
                 if abs(ft)>(br_tol*max(af,abs(falt)) if rel_err else br_tol):
                     lamn = lam - f * (lam - lamalt) / ft
                     nd = not (ll < lamn < lh)
-                else:nd=True
+                #else:nd=True
             if nd:
                 #print('Called bracket fallback',ict,lamn,lam,lo,hi)
                 #final fallback after both secant points fail. either by imprecision or bounds.
@@ -244,19 +261,33 @@ def signedroot_secant(f_op, lo, hi,br_rate=.5, max_iters=20, sign=1,eager=False,
 
 @nbu.jt
 def posroot_nofallb_secant(f_op, lo, hi,br_rate=.5, max_iters=15,br_tol=None,er_tol=None,dtyp=None):
-    #NOTE TO USERS: you can get smaller byte-codes and maybe faster methods, by propagating constants through a wrapper eg
-    #But kwargs that are not called in the function header will also get statically compiled for that signature.
-    """All constants in this example will compile out their conditionals, resulting in a more lightweight procedure."""
+    """
+    This is a demo for users:
+    All constants in this example will compile out their conditionals, resulting in a more lightweight procedure.
+    
+    However kwargs that are not called in the function header will also get statically compiled for that signature.
+    So it's also fine to treat it as a wrapper that changes all default args, and the function should get the same
+    compile time benefits.
+    """
     return signedroot_secant(f_op, lo, hi, br_rate, max_iters, 1, True, False, br_tol, er_tol, True, dtyp)
 
 
 
 @nbu.jt
-def signedroot_quadinterp(f_op, lo, hi, br_rate=.5, max_iters=15, sign=1,eager=True,er_tol=None,br_tol=None,dtyp=None):
+def signedroot_quadinterp(f_op:callable, lo:float, hi:float, br_rate=.5, max_iters=15, sign=1,eager=True,er_tol=None,br_tol=None,dtyp=None):
     """
-    Signed Root quadratic interpolation scheme. Functions exactly like signedroot_secant but uses quadratic root solution. This method can save more than a few iterations when the problem has pronounced curvature at the root, otherwise the total # of steps is like the secant method and sometimes and rarely a bit worse if higher moments along the bracket dominate.
+    Signed Root quadratic interpolation scheme. Functions exactly like signedroot_secant but uses a quadratic
+    root solution, improving the convergence rate. This method can save more than a few iterations when the
+    problem has pronounced curvature at the root, otherwise the total # of steps is like the secant method.
+    Therefore it can be seen as the successor of ``signedroot_secant`` as it still works in all the same
+    conditions. In certain rare cases the secant method may still perform slightly better.
     
-    While the secant method has a convergence order of ~O(1.6), quadinterp is ~O(1.8). Though this seems to be more like the average. With high root curvature it can even use only 1/2 the number of steps.
+    Other Notes:
+    
+    While the secant method has a convergence order of ~O(1.6), quadinterp is ~O(1.8). But clearly this is 
+    just an expectation depending on how compatible the error order is. With high root curvature it can 
+    even end up with only 1/2 the number of steps.
+    
     """
     if dtyp is None: dtyp=nbu.type_ref(lo) # which will default to f64 unless dtyp is specified
     if br_tol is None:br_tol=nbu.prim_info(dtyp,2)**(2/3)
@@ -314,6 +345,7 @@ def signedroot_quadinterp(f_op, lo, hi, br_rate=.5, max_iters=15, sign=1,eager=T
     
     while ict > 0:
         #tbh we probably don't even need this check anymore, delta positive check could be enough.
+        #yeah going with that. -- consider this better.
         #nd=max(abs(f - fo),abs(f - falt)) > br_tol*max(abs(f),abs(fo),abs(falt))
         a, b, c = quadratic_newton_coef(lam, lamo, lamalt, f, fo, falt)
         delta = b*b - _4*a*c
@@ -343,14 +375,15 @@ def signedroot_quadinterp(f_op, lo, hi, br_rate=.5, max_iters=15, sign=1,eager=T
             lo = lam
             flo=f
         
-        if abs(lamo - lam) < er_tol:break
+
+        if abs(lamo - lam) < er_tol:break #noqa: E701
 
     return lam,lo,hi,2 if not op_bracket else 1 if ict==0 else 0 #2 is no lower bracket found, 1 failed to converge in time, 0 success
     
 
 
 @nbu.jt
-def signedroot_newton(f_op, g_op, lo, hi, br_rate=.5, max_iters=12, sign=1,eager=True,er_tol=None,br_tol=None,rel_err=True,dtyp=None):
+def signedroot_newton(f_op:callable, g_op:callable, lo:float, hi:float, br_rate=.5, max_iters=12, sign=1,eager=True,er_tol=None,br_tol=None,rel_err=True,dtyp=None):
     """A bracketed Newton method that exploits prior knowledge about the side of the root and the desired root slope sign.
 
     Strategy mirrors the secant variant:
@@ -373,8 +406,8 @@ def signedroot_newton(f_op, g_op, lo, hi, br_rate=.5, max_iters=12, sign=1,eager
     :param sign: =1 means we expect f(lo)<f(root)<f(hi); =-1 means f(lo)>f(root)>f(hi).
     """
     if dtyp is None: dtyp=nbu.type_ref(lo) # which will default to f64 unless dtyp is specified
-    if br_tol is None:br_tol=nbu.prim_info(dtyp,2)**(2/3)
-    if er_tol is None:er_tol=nbu.prim_info(dtyp,2)**(1/2)
+    if br_tol is None: br_tol=nbu.prim_info(dtyp,2)**(2/3)
+    if er_tol is None: er_tol=nbu.prim_info(dtyp,2)**(1/2)
     br_rate,lo,hi,er_tol,br_tol=dtyp(br_rate),dtyp(lo),dtyp(hi),dtyp(er_tol),dtyp(br_tol)
     _1=dtyp(1.)
     _0=dtyp(0.)
@@ -392,6 +425,7 @@ def signedroot_newton(f_op, g_op, lo, hi, br_rate=.5, max_iters=12, sign=1,eager
     # One f,g eval "outside" the loop; reused to propose the first Newton step.
     g = nbu.op_call_args(g_op, lam)
     f = nbu.op_call_args(f_op, lam)
+    
 
     ict = int(max_iters)
     op_bracket = eager
@@ -518,7 +552,7 @@ def signseeking_halley(f_op, g_op,c_op, lo, hi, br_rate=.5, max_iters=12, sign=1
 
 @nbu.rgi
 def brents_method(f_op, lo, hi, er_tol=1e-12, max_iters=50):
-    """ NOTE: In reality this method appears to almost never outperform the bracketed secant or quadinterp method, converging in more steps. But all have smooth convergence guarantees from the bisection bracket. And the compiled kernel of bracketed secant will be significantly smaller. Maybe this implementation is not completely correct?
+    """ NOTE: In reality this method appears to almost never outperform the bracketed secant or quadinterp method, converging in more steps. But all have smooth convergence guarantees from the bisection bracket.
     
     Original Brent's method per Wikipedia (inverse quadratic interpolation + secant + bisection),
     no pre-bisection. Requires the caller to provide a valid bracket with f(lo)*f(hi) <= 0.

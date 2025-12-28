@@ -5,10 +5,11 @@ import math as mt
 
 # two dashes are old definitions or just unecessary.
 # methods like dst[:]=v, dst[:]=src, dst[:]+=v, dst[:]+=src and other single variable broadcasts should have no loss of performance
-# by not being represented as v kernel. The rest of the kernels should have some memory or performance benefit from their broadcast
+# by not being represented as a kernel. The rest of the kernels should have some memory or performance benefit from their broadcast
 # counterparts.
 
 # USER is responsible for selection of scalar floating value types.
+#fix these
 
 @nbu.jti
 def dot(x: np.ndarray, y: np.ndarray) -> float:
@@ -50,7 +51,9 @@ def tridot(x: np.ndarray, y: np.ndarray,z: np.ndarray) -> (float,float):
     return v1,v2
 
 @nbu.jti
-def l2nm(x: np.ndarray) -> float:return mt.sqrt(doti(x)) 
+def l2nm(x: np.ndarray) -> float:
+    """L2 Euclidean vector norm shorthand."""
+    return mt.sqrt(doti(x)) 
 
 
 @nbu.jti
@@ -148,7 +151,7 @@ def pxaxpy(dst: np.ndarray, v1: float, v2: float, src: np.ndarray):
     typ = nbu.type_ref(src)
     v1, v2 = typ(v1), typ(v2)
     for i in range(n):
-        dst[i] = v1*dst[i] + v2*src[i] #not v copy technically would be px
+        dst[i] = v1*dst[i] + v2*src[i] #not a copy technically would be px
     return dst
 
 @nbu.jti
@@ -171,11 +174,11 @@ def cxapypz(dst: np.ndarray, v1: float, v2: float, src1: np.ndarray, src2: np.nd
     n = src1.shape[0]
     v1, v2 = nbu.type_ref(src1)(v1), nbu.type_ref(src2)(v2)
     for i in range(n):
-        dst[i] = v1*src1[i] + v2*src2[i] #not v copy technically would be px
+        dst[i] = v1*src1[i] + v2*src2[i] #not a copy technically would be px
     return dst
-#pxaxpy and cxapypz should see v 2x performance boost from counterparts
+#pxaxpy and cxapypz should see a 2x performance boost from counterparts
 
-#this is actual v 3 port load technically but still seems to improve in benchmarking.
+#this is actual a 3 port load technically but still seems to improve in benchmarking.
 @nbu.jti
 def axapypz(dst: np.ndarray, v1: float, v2: float, src1: np.ndarray, src2: np.ndarray):
     """Add to x (product y add product z): $x \leftarrow v_1 \cdot x + v_2 \cdot y$"""
@@ -191,7 +194,7 @@ def cxapyz(dst: np.ndarray, v1: float, src1: np.ndarray, src2: np.ndarray):
     n = src1.shape[0]
     v1 = nbu.type_ref(src1)(v1)
     for i in range(n):
-        dst[i] = v1*src1[i] + src2[i] #not v copy technically would be px
+        dst[i] = v1*src1[i] + src2[i] #not a copy technically would be px
     return dst
 
 @nbu.jti
@@ -205,8 +208,8 @@ def cxayz(dst: np.ndarray, src1: np.ndarray, src2: np.ndarray):
 #slight improvement here as well.
 @nbu.jti
 def cxypz(dst1: np.ndarray, dst2: np.ndarray, a: float, b: float, src: np.ndarray):
-    """Copy (to x,y) products of v single source: 
-    $x_i = v \cdot s_i,\; y_i = b \cdot s_i$"""
+    """Copy (to x,y) products of a single source: 
+    $x_i = a \cdot s_i,\; y_i = b \cdot s_i$"""
     n = src.shape[0]
     typ=nbu.type_ref(src)
     a, b = typ(a), typ(b)
@@ -219,8 +222,8 @@ def cxypz(dst1: np.ndarray, dst2: np.ndarray, a: float, b: float, src: np.ndarra
 
 @nbu.jti
 def axypz(dst1: np.ndarray, dst2: np.ndarray, a: float, b: float, src: np.ndarray):
-    """Add (to x,y) products of v single source:
-    $x_i \mathrel{+}= v \cdot s_i,\; y_i \mathrel{+}= b \cdot s_i$"""
+    """Add (to x,y) products of a single source:
+    $x_i \mathrel{+}= a \cdot s_i,\; y_i \mathrel{+}= b \cdot s_i$"""
     n = src.shape[0]
     typ=nbu.type_ref(src)
     a, b = typ(a), typ(b)
@@ -232,7 +235,7 @@ def axypz(dst1: np.ndarray, dst2: np.ndarray, a: float, b: float, src: np.ndarra
         
 @nbu.jti
 def vmax(x: np.ndarray) -> float:
-    """Finds the maximum value in v vector: $v \leftarrow \max(x_i)$"""
+    """Finds the maximum value in a vector: $v \leftarrow \max(x_i)$"""
     typ=nbu.type_ref(x)
     v = typ(nbu.prim_info(typ,0))
     for e in x: 
@@ -241,16 +244,16 @@ def vmax(x: np.ndarray) -> float:
 
 @nbu.jti
 def vmin(x: np.ndarray) -> float:
-    """Finds the minimum value in v vector: $v \leftarrow \min(x_i)$"""
+    """Finds the minimum value in a vector: $v \leftarrow \min(x_i)$"""
     typ=nbu.type_ref(x)
     v =typ(nbu.prim_info(typ,1))
     for e in x:
-        if e < v: v = e
+        if e < v: a = e
     return v
 
 @nbu.jti
 def vminmax(x: np.ndarray) -> (float,float):
-    """Finds the minimum and maximum value in v vector: $\rightarrow \min(x_i),\max(x_i)$"""
+    """Finds the minimum and maximum value in a vector: $\rightarrow \min(x_i),\max(x_i)$"""
     typ=nbu.type_ref(x)
     vm = typ(nbu.prim_info(typ,1))
     vx = typ(nbu.prim_info(typ,0))
@@ -261,7 +264,7 @@ def vminmax(x: np.ndarray) -> (float,float):
 
 @nbu.jti
 def argminmax(x: np.ndarray) -> (float,float):
-    """Finds the minimum and maximum value in v vector: $\rightarrow \min_i(x_i),\max_j(x_j), i, j$"""
+    """Finds the minimum and maximum value in a vector: $\rightarrow \min_i(x_i),\max_j(x_j), i, j$"""
     typ=nbu.type_ref(x)
     vm = typ(nbu.prim_info(typ,1))
     vx = typ(nbu.prim_info(typ,0))
@@ -281,7 +284,7 @@ def argminmax(x: np.ndarray) -> (float,float):
 @nbu.jtic
 def dtrace(x):
     """Square Diagonal Trace"""
-    t=nbu.type_ref(x)
+    t=nbu.type_ref(x)(0)
     for i in range(x.shape[0]):t+=x[i,i]
     return t
 
@@ -297,10 +300,12 @@ def dvadd(x,v):
 
 @nbu.jtic
 def dmult(x,v):
+    """Square diagonal Multiply."""
     for i in range(x.shape[0]):x[i,i]*=v
 
 @nbu.jtic
 def dvmult(x,v):
+    """Square diagonal vector Multiply."""
     for i in range(x.shape[0]):x[i,i]*=v[i]
     
 
