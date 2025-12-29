@@ -1,14 +1,17 @@
-import numpy as np
-import numba as nb
-from numba import types, literal_unroll
+#pyrefly: ignore-errors
+
+import math as mt
 import random as rand
 import time as t
+
 import matplotlib.pyplot as plt
+import numba as nb
+import numpy as np
+from numba import literal_unroll, types
 from scipy.stats import t as tdist  # for t-distribution critical value
 
 from routines import grid_eval
 from utils import stack_empty
-import math as mt
 
 
 def time_funcs(callables, names, reset_call,

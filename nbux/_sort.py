@@ -40,7 +40,7 @@ def impl_arg_insert_sort(sr, idxr, comp_call):
 @nbu.jt
 def arg_insert_sort(sr, idxr, small_first=True):
     if small_first:impl_arg_insert_sort(sr,idxr,lambda k1,k2:k1<k2)
-    else:impl_insert_sort(sr,idxr,lambda k1,k2:k1>k2)
+    else:impl_insert_sort(sr,idxr,lambda k1,k2:k1>k2) #type: ignore[bad-argument-count]
     
 
 
@@ -129,7 +129,7 @@ def make_merge_sort(argsort=False,top_down=True,ins_sep=56):
         #WARNING TO USERS. In theory this should be faster because no recursion and the parallelized insert sort, while the insert sort pl does improve performance the merge sort bottom_up loops run significantly slower.
         #Idk why, maybe it has to do with rounding to the nearest index, perhaps initializing them outside of the loops or another method would let this method surpass the recursive stack method.
         @nbu.jtp
-        def merge_sort(arr, vals, _ws,*__ext):
+        def merge_sort(arr, vals, _ws, *__ext):
             #implement bottom up merge sort that first identifies the smallest # of partitions that equally divides the array such that
             #each array is smaller than or equal to SMALL_MERGESORT and the # of partitions is v power multiple of 2.
             #then it performs these insert sorts for each group.
@@ -206,7 +206,8 @@ merge_sort=make_merge_sort(False,True,56)
 def binary_argsearch(x,v,unsafe=None):
     """Search sorted with tradeoff for a little perf benefit on small arrays, tradeoff calculated for f64.
     
-    For a few more microseconds set unsafe not None, but there MUST be a value in x smaller than v or it will not terminate.
+    For a few more microseconds set unsafe not None, but there MUST be a value in x smaller than v or it 
+    will not terminate.
     
     May add Argsearch sorted later.
     """

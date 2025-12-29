@@ -1,22 +1,27 @@
+#ruff: noqa: E731
 
+import inspect
+import os
+import textwrap
+import warnings
+from collections.abc import Callable, Sequence
+from functools import wraps
+from types import NoneType
+from typing import Any, Callable, Sequence
 
-from typing import Sequence, Callable
-
+import numba as nb
+import numba.core.errors as nb_error
+import numpy as np
+from numba import types
+from numba.core import cgutils
+from numba.core.errors import NumbaPerformanceWarning
+from numba.extending import intrinsic, overload, register_jitable
 from numba.np.numpy_support import as_dtype
 
-import numpy as np
-import numba as nb
-from numba import types
-from numba.extending import intrinsic,register_jitable,overload
-from numba.core import cgutils
-import warnings
-from functools import wraps
-import os
 _N = types.none
-from numba.core.errors import NumbaPerformanceWarning
-
 #Some shorthands
 unroll=nb.literal_unroll
+CSeq=tuple|list
 
 # implements
 def njit_no_parallelperf_warn(**njit_kwargs):
@@ -46,6 +51,7 @@ _fm=os.environ.get('NB_GLOB_FM','true')
 _fm = False if not _fm or _fm.lower() in 'false' else eval(_fm) if any(i in _fm for i in ('[','{','(')) else True
 #--- Numba Global Error Model : 'numpy'|'python' will do less checks but frequently has much faster jitted code, because it isn't forced to fall back to larger data types, [see this article](). 
 _erm=os.environ.get('NB_GLOB_EM','numpy')
+
 
 """
 Before continuation some notes on this section:
@@ -153,7 +159,6 @@ ovsic=lambda impl: overload(impl,jit_options=jit_sc,inline='always')
 ovp=lambda impl: overload(impl,jit_options=jit_p)
 ovpc=lambda impl: overload(impl,jit_options=jit_pc)
 
-
 #shorthand
 fb_=np.frombuffer
 
@@ -192,13 +197,17 @@ def stack_empty(size,shape,dtype):
 @jtc
 def stack_empty_(size, shape, dtype):
     """The numba implementation of `stack_empty` """
-    arr_ptr=stack_empty_impl(size,dtype)
+    arr_ptr=stack_empty_impl(size,dtype) #type: ignore[bad-argument-count]
     arr=nb.carray(arr_ptr,shape)
     return arr
 
 @ovs#c
 def _stack_empty(size,shape,dtype):
-    """Thes overloads the implementation, so calling stack_empty in a python area will just return a normal c-array with shape and dtype."""
+    """Overloads the implementation, so calling stack_empty in a python area will just return a normal c-array with 
+    shape and dtype.
+    
+    
+    """
     return lambda size, shape, dtype: stack_empty_(size, shape, dtype)
 
 #can probably use this to replace the self archive tracking for de-bpesta mutation.
@@ -206,7 +215,22 @@ def _stack_empty(size,shape,dtype):
 def nb_val_ptr(typingctx, data):
     """Get the address of any numba primitive value.
     
-    Use for setting or getting values in some non-local setting within numba, e.g. a call to certain LAPACK or BLAS routines with a value return.
+    Use for setting or getting values in some non-local setting within numba, e.g. a call to certain LAPACK or BLAS 
+    routines with a value return.
+    
+    Example:
+    --------
+        (within a numba njit block)::
+            
+            a = np.int64(5)
+            
+            ap = nb_val_ptr(ap)
+            ap +=1
+            
+            print(nb_pointer_val(ap))
+        
+        Output: 6
+            
     """
     def impl(context, builder, signature, args):
         ptr = cgutils.alloca_once_value(builder,args[0])
@@ -216,7 +240,11 @@ def nb_val_ptr(typingctx, data):
 
 @intrinsic
 def nb_ptr_val(typingctx, data):
-    """Get the value from a pointer/adress."""
+    """Get the value from a pointer/address.
+    
+    See ``nb_val_ptr``.
+    
+    """
     def impl(context, builder, signature, args):
         val = builder.load(args[0])
         return val
@@ -232,17 +260,28 @@ def nb_array_ptr(typingctx, arr_typ):
     return elptr(arr_typ), codegen
 
 @jtic 
-def buffer_nelems_andp(arr):
-    """This is basically a method to get the gaps in a discontinuous array. It's a method to return the contiguous backing array to be used for iterations where mutation of the discontinuous portion isn't actually relevant but can improve total loop performance through vectorized contiguous blocks."""
-    ptr=nb_array_ptr(arr)
+def buffer_nelems_andp(arr:np.ndarray)->tuple[int,Sequence]:
+    """This is basically a method to get the gaps in a discontinuous array. It's a method to return the contiguous 
+    backing array (along the first memory-leading axis, supports Fortran and C ordering) to be used for iterations 
+    where mutation of the discontinuous portion isn't actually relevant but can improve total loop performance through 
+    vectorized contiguous blocks.
+   
+    - ``ptr`` is the type-correct offset to the start of the underlying buffer.
+    - ``nelems`` Total # of values contained in array's original dimensions with extra fill-in for the discontiguous part of the leading dimension. If only the leading dimension is discontiguous then the last element of the buffer is accessible like ``ptr[nelems-1]``.
+    
+    :return: Total size of the backing array, the datatype pointer offset.
+    """ #noqa: E501
+    #We will tell typing that this is a Sequence, because a datatype pointer will have a __getitem__.
+    ptr:Sequence=nb_array_ptr(arr) #type: ignore[bad-assignment]
     size = arr.size
     if arr.ndim<2:return size,ptr # noqa: E701
     # fast C vs F test via stride magnitudes
     s1,s2=(-1,-2) if abs(arr.strides[0]) >= abs(arr.strides[-1]) else (0,1) #we use this to detect if C or F ordered
     tail_prod = size // arr.shape[s1]
     first_len = abs(arr.strides[s2]) // abs(arr.strides[s1])
-    nelems = tail_prod * first_len
-    #There is so much less implementation code than np.frombuffer in numba, because it's assumed the entire thing is contiguous
+    nelems:int = tail_prod * first_len
+    #There is so much less implementation code than as seen in np.frombuffer from numba, because we are only concerned
+    #with the contiguous 1D buffer.
     return nelems,ptr
 
 
@@ -253,10 +292,10 @@ ri32=ri64
 ovsic(ri64)(lambda rd: (lambda rd: nb.int64(rd + .5)))
 ovsic(ri32)(lambda rd: (lambda rd: nb.int32(rd + nb.float32(.5))))
 
-def ri64s(rd:float,s): return int((rd/s) + .5)*s
-ri32s=ri64s
-overload(ri64s, **cfg.jit_s,cache=True)(lambda rd,s: (lambda rd,s: nb.int64((rd/s) + .5)*s))
-overload(ri32s, **cfg.jit_s,cache=True)(lambda rd,s: (lambda rd,s: nb.int32((rd/s) + nb.float32(.5))*s))
+# def ri64s(rd:float,s): return int((rd/s) + .5)*s
+# ri32s=ri64s
+# overload(ri64s, **cfg.jit_s,cache=True)(lambda rd,s: (lambda rd,s: nb.int64((rd/s) + .5)*s))
+# overload(ri32s, **cfg.jit_s,cache=True)(lambda rd,s: (lambda rd,s: nb.int32((rd/s) + nb.float32(.5))*s))
 
 
 
@@ -297,8 +336,8 @@ def display_round(f,m=1,s=10):
 | complex128      | c16       | double-precision complex number        |
 
 We can get the type using type_ref and check it against np.dtype's within the jit scope.
-But it has to be single boolean statements eg typ is np.float64 or typ is np.float32. Likely because this is compile time
-and not run time.
+But it has to be single boolean statements eg typ is np.float64 or typ is np.float32. Likely because this is compile 
+time and not run time.
 
 """ 
 
@@ -338,55 +377,215 @@ def _if_val_cast(typ,val):
     """Overloads impl."""
     if isinstance(val,types.IterableType):return lambda typ,val:val
     else:return lambda typ,val:typ(val)
+
+Op=Callable|NoneType|CSeq
     
-def op_call(cal:Callable|tuple,_def=True):
-    #_def is for default value
-    if isinstance(cal,Callable):
-        return cal()
-    elif isinstance(cal,tuple|list):
-        if isinstance(cal[0],Callable):
-            return cal[0](*cal[1:])
-    if _def is not None:
-        return _def
-    return cal 
+def op_call(call_op:Op, defr=True):
+    """
+    An **Evaluator** (caller) for **Call Operator**'s
+    
+    Specifically targets constraints in numba first class functions, and also works in no-python mode.
+    
+    It has the form
+    ::
+        op = (callable, *args)
+        #or maybe:
+        op = (callable, arg1, arg2, arg3)
+    
+    Why is this useful? Numba implements first class functions. Depending on the definition, it supports
+    full LLVM optimization and cached signatures, e.g.
+    ::
+    
+        @nbux.jt
+        def ctest(arg1, arg2): 
+            return arg1-arg2
+        
+        @nbux.jt       
+        def fclass_test(func_op, arg3):
+            return func_op[0](*func_op[1:]) + arg3
+        
+        @nbux.jtc
+        def static_compile(a,b,c):
+            #supports caching and the byte code will produce an ``a - b + c`` hot path.
+            return fclass_test((ctest,a,b),c)
+            
+    Or it can be called externally, in which case ``ctest`` and ``fclass_test`` will be compiled separately
+    and linked by function pointers (in this example it will produce a much slower subtract add operation).
+    ::
+        fclass_test((ctest,a,b),c) 
+    
+    We get the same result but now ctest will also not have a new compilation overhead 
+    
+    :param call_op: 
+    :param defr: Default return value of call_op is None.
+    :return: 
+    """
+    
+    if isinstance(call_op, Callable):
+        return call_op()
+    elif isinstance(call_op, (tuple, list)):
+        if isinstance(call_op[0], Callable):
+            return call_op[0](*call_op[1:])
+    #In case we want a default value to return when is optional. eg a premature stopping criterial for an algorithm
+    #when not used should return True always for a 'should continue?'
+    if defr is not None:
+        return defr
+    return call_op 
+
+
+def ctest(arg1, arg2): 
+    return arg1-arg2
+        
+def fclass_test(func_op, arg3):
+    return func_op[0](*func_op[1:]) + arg3
+
+def static_compile(a,b,c):
+    return fclass_test((ctest,a,b),c)
+    
 
 @ovsic(op_call)
-def _op_call(cal,_def=True):
-    if isinstance(cal,types.Callable):
-        return lambda cal,_def=True: cal()
-    elif isinstance(cal,types.BaseTuple|types.LiteralList):
-        if isinstance(cal[0],types.Callable):
-            return lambda cal,_def=True: cal[0](*cal[1:])
-    if _def is not _N:
-        return lambda cal,_def=True: _def
-    return lambda cal, _def=True: cal
+def _op_call(call_op:Op, defr=True):
+    if isinstance(call_op,types.Callable):
+        return lambda call_op,defr=True: call_op()
+    #ruff: disable[F821]
+    elif isinstance(call_op,types.BaseTuple|types.LiteralList):
+        if isinstance(call_op[0],types.Callable):
+            return lambda call_op,defr=True: call_op[0](*call_op[1:])
+    if defr is not _N:
+        return lambda call_op,defr=True: defr
+    return lambda call_op, defr=True: call_op
 
+def op_call_args(call_op:Op, args: CSeq|Any=(), defr=None):
+    """
+    A callable with arguments supplied either directly or via an operator tuple.
+    
+    ``op_call_args`` accepts either:
+     - a callable ``call_op``, or
+     - a sequence whose first element is a callable and whose remaining elements are pre-bound arguments,
+    
+    and applies ``args`` to it. If ``args`` is a tuple or list it is expanded;
+    otherwise it is treated as a single argument.
+    
+    Example:
+    ::
+        @nbux.jt
+        def callop(a, b, c):
+            return a + b + c
+    
+        # plain callable
+        nbux.op_call_args(callop, (1, 2, 3))
+        nbux.op_call_args(callop, 1)
+    
+        # operator with attached arguments
+        op = (callop, 10)
+        
+        nbux.op_call_args(op, (2, 3))
+        # -> callop(2, 3, 10)
+        
+        nbux.op_call_args(op, 5)
+        # -> callop(5, 10)
+    
+    :param call_op: Callable or tuple/list whose first element is callable, remaining elements are fixed arguments.
+    :param args: Arguments to apply, either as a tuple/list or a single value.
+    :return: Function output.
+    """
 
-def op_call_args(cal,args):
-    ct=isinstance(cal,Callable) #otherwise tuple|list
-    rt=isinstance(args,tuple|list) #otherwise single element.
-    if ct and rt:
-        return cal(*args)
-    if ct and not rt:
-        return cal(args)
-    if not ct and rt:
-        return cal[0](*args,*cal[1:])
-    #if not ct and not rt:
-    return cal[0](args,*cal[1:])
+    if isinstance(call_op,NoneType): #so ruff doesn't complain
+        if defr is None: return call_op
+        else: return defr
+    
+    ct=isinstance(call_op, Callable) #otherwise CSeq
+    rt=isinstance(args,CSeq) #otherwise single element.
+    if ct:
+        if rt: return call_op(*args)
+        return call_op(args)
+    else:
+        if rt: return call_op[0](*args,*call_op[1:])
+        return call_op[0](args,*call_op[1:])
 
 @ovsic(op_call_args)
-def _op_call_args(cal,args):
-    ct=isinstance(cal,types.Callable) #otherwise tuple|list
-    rt=isinstance(args,types.BaseTuple|types.LiteralList) #otherwise single element.
-    #print('Here',ct,rt)
-    if ct and rt:
-        return lambda cal,args: cal(*args)
-    if ct and (not rt):
-        return lambda cal,args: cal(args)
-    if (not ct) and rt:
-        return lambda cal,args: cal[0](*args,*cal[1:])
-    #if not ct and not rt:
-    return lambda cal,args: cal[0](args,*cal[1:])
+def _op_call_args(call_op:Op, args: CSeq|Any=(), defr=None):
+    """"``op_call_args`` overload for numba implementation."""
+    #ruff: disable[F821]
+    if call_op is _N:
+        if defr is _N or defr is None: return call_op
+        else: return defr
+    
+    ct=isinstance(call_op, types.Callable)
+    rt=isinstance(args,(types.BaseTuple,types.LiteralList))
+
+    if ct:
+        if rt: return lambda cal,args=(),defr=None: cal(*args)
+        return  lambda cal,args=(),defr=None: cal(args)
+    else:
+        if rt: return lambda cal,args=(),defr=None: cal[0](*cal[1:],*args)
+        return lambda cal,args=(),defr=None: cal[0](*cal[1:],args)
+
+
+def op_args(call_op:Op, args: CSeq|Any=(), defr=None):
+    """
+    Previously called ``op_call_args_v2`` as ``op_call_args``'s successor, only difference being we send
+    ``call_op``'s own arguments before ``args``. 
+    
+    This method is more flexible than ``op_call_args`` because it allows the underlying callable to still have
+    a variable portion of arguments when used at different entry points. While any arguments in ``call_op[1:]``
+    e.g. array work memory addresses or config values, can be treated like generic or unobserved constants.
+    
+    Example: 
+    ::
+        @nbux.jt
+        def callop(a,b,c,d,*args):
+            pass
+        
+        op=(callop, 1,2,3)
+        
+        @nbux.jt
+        def testop(op):
+            
+            nbux.op_args(op, (7,9,6))
+            nbux.op_args(op, (.1,.2))
+    
+    Note how in the example, 7 and 0.1 would occupy argument ``d``, and the rest fall into the variable ``*args``
+    sequence. Args length can be used within a numba block, and its elements are accessed statically. But
+    ``op_call_args`` would fail for the same setting.
+    
+
+    :param call_op: The callable, or callable operator and attached parameters.
+    :param args: The other implementation arguments that are treated as external or problem-specific inputs.
+    :return: Function output.
+    """
+    
+    if isinstance(call_op,NoneType):
+        if defr is None: return call_op
+        else: return defr
+    
+    ct=isinstance(call_op, Callable)
+    rt=isinstance(args,CSeq)
+    if ct:
+        if rt: return call_op(*args)
+        return call_op(args)
+    else:
+        if rt: return call_op[0](*call_op[1:], *args)
+        return call_op[0](*call_op[1:], args)
+
+@ovsic(op_args)
+def _op_args(call_op:Op, args: CSeq|Any=(), defr=None):
+    """"``op_args`` overload for numba implementation."""
+    #ruff: disable[F821]
+    if call_op is _N:
+        if defr is _N or defr is None: return call_op
+        else: return defr
+    
+    ct=isinstance(call_op, types.Callable)
+    rt=isinstance(args,(types.BaseTuple,types.LiteralList))
+
+    if ct:
+        if rt: return lambda cal,args=(),defr=None: cal(*args)
+        return  lambda cal,args=(),defr=None: cal(args)
+    else:
+        if rt: return lambda cal,args=(),defr=None: cal[0](*cal[1:],*args)
+        return lambda cal,args=(),defr=None: cal[0](*cal[1:],args)
+
 
 
 @rgc
@@ -415,8 +614,6 @@ def aligned_buffer(n_bytes: int, align: int = 64) -> np.ndarray:
     raw = np.empty(n_bytes + align, dtype=np.uint8)
     offset = (-raw.ctypes.data) & (align - 1)
     return raw[offset : offset + n_bytes]
-
-
 
 
 def prim_info(dt, field):
@@ -462,7 +659,7 @@ def prim_info(dt, field):
         # Universal: byte size
         case (_, 3): return dt.itemsize
         # Fallback
-        case _: return None
+        #case _: return None
 
 np_tinfo=prim_info
 
@@ -476,7 +673,7 @@ def _prim_info(typ,res):
     :return: 
     """
     if isinstance(res,(nb.types.Literal,int)):
-        ref=res if type(res) is int else res.literal_value
+        ref=res if isinstance(res,int) else res.literal_value #`type(res) is` unliked by pyrefly
         tpref=as_dtype(typ)
         infoval=np_tinfo(tpref,ref) #where we query 
         return lambda typ,res: infoval
@@ -492,7 +689,13 @@ def placerange(r,start=0,step=1):
 
 @rgi
 def swap(x,i,j):
-    """Array element swap shorthand."""
+    """Array element swap shorthand.
+    
+    :param np.ndarray x: 1D array to perform element swap on. 
+    :param int i: First element index.  
+    :param int j: Second element index.
+    :return: 
+    """
     t=x[i]
     x[i]=x[j]
     x[j]=t
@@ -505,9 +708,11 @@ def force_const(val):
     different values meaning it will recompile from the python scope each time the value
     is changed. This is true even before the interpreter restarts.
     
-    Therefore ``force_const`` may not have a meaningful use case.
+    Therefore ``force_const`` may not have a meaningful use case, because non-cached numba functions will
+    
     """
     return val
+
 @ovs(force_const)
 def _force_const(val):
     if isinstance(val,types.Literal):
@@ -518,33 +723,45 @@ def _force_const(val):
         return lambda val: nb.literally(val)
 
 
-def run(func,*args,**kwargs):
-    return func(*args,**kwargs)
-
 def run_py(func,*args,**kwargs):
-    """Numba's base python definition is inside the ``py_func`` field, if it exists we try to call it here."""
+    """Numba's base python definition is inside the ``py_func`` field, if it exists we try to call it here.
+    
+    :param Callable func: callable.
+    :param Sequence args: Variable unnamed ordered args.
+    :param dict kwargs: Variable named unordered kwargs.
+    :return: 
+    
+    """
     if hasattr(func,'py_func'):
-        func = func.py_func
-    run(func,*args,**kwargs)
+        func:Callable = func.py_func
+    
+    return func(*args, **kwargs)
 
-def run_fallback(func,*args,verbose=False,**kwargs):
+
+def run_numba(func,*args,verbose=False,**kwargs):
     """First attempts to call the numba dispatcher in fully compiled (no-python) mode.
     
-    If that fails it tries to run it as a python function. Even if the function signature isn't
-    supported in no-python, it can still provide performance benefits as the numba subroutines
+    If that fails it tries to run as a python function. Even if the function signature isn't
+    supported in no-python mode, it can still provide performance benefits as the numba subroutines
     will be compiled separately.
+    
+    :param Callable func: callable.
+    :param bool verbose: Announce if the no-python dispatch failed for the function before running in python mode.
+    :param Sequence args: Variable unnamed ordered args.
+    :param dict kwargs: Variable named unordered kwargs.
+    :return: 
     
     """
     try:
-        return run(func,*args,**kwargs)
-    except:
+        return func(*args, **kwargs)
+    except (nb_error.TypingError,nb_error.UnsupportedError):
         if verbose:
-            print('Failed to run numba mode, attempting python.')
+            print(f'Failed to run full-numba for {func.__name__}, attempting in python.')
         return run_py(func,*args,**kwargs)
 
 ### FORCED PARALLEL OR SYNC BLOCK
-import inspect
-import textwrap
+
+
 
 def _ov_pl_factory(sync_impl, pl_impl, ov_def):
     """
@@ -573,10 +790,9 @@ def _ov_pl_factory(sync_impl, pl_impl, ov_def):
             base += "=" + repr(p.default)
         return base
 
-    full_params      = ", ".join(_pstr(p)            for p in params)
+    full_params = ", ".join(_pstr(p) for p in params)
     if lp is None: raise ValueError(f'Parallel overloads separator failed to find keyword for: def {ov_def.__name__}')
-    call_args        = ", ".join(p.name              for p in params
-                                 if p.name not in ("parallel",'pl'))
+    call_args = ", ".join(p.name for p in params if p.name not in ("parallel", 'pl'))
     lambda_paramlist = full_params
 
     code = f"""
@@ -601,6 +817,13 @@ def gener_ov({full_params}):
     return ov_def
 
 def ir_force_separate_pl(sync_impl, pl_impl):
+    """
+    See `nbux._rng`
+    
+    :param sync_impl: 
+    :param pl_impl: 
+    :return: 
+    """
     return lambda ov_def: _ov_pl_factory(sync_impl,pl_impl,ov_def)
  
 ### INDEX LOWERING OPS - a form of implicit internal broadcast indexing for arrays.
@@ -691,7 +914,7 @@ def _l_12_d(x, i1=0, i2=0,d=0):
     def _impl(x,i1=0, i2=0,d=0):return x
     if isinstance(x, types.Array):
         if isinstance(d,(nb.types.Literal,int)):
-            dv=d if type(d) is int else d.literal_value
+            dv=d if isinstance(d,int) else d.literal_value
             if _verbs:
                 print('d is ',dv)
             if x.ndim >= 2+dv: 

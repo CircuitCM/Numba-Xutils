@@ -1,5 +1,5 @@
-import numpy as np
 import numba as nb
+import numpy as np
 from nevergrad.benchmark.experiments import parallel
 
 ### --- 1: OPERATOR STRATEGY
@@ -145,7 +145,7 @@ def customprocessor_ver4(x,
     f = eval_op[0](x, *eval_op[1:])
     while not stop_op[0](f, x, *stop_op[1:]):
         
-        if monitor_op is not None: monitor_op[0](f, x, c, d, *monitor_op[0])
+        if monitor_op is not None: monitor_op[0](f, x, c, d, *monitor_op[1:])
         f = eval_op[0](x, *eval_op[1:])
     return f, x
 
@@ -159,7 +159,7 @@ def customprocessor_ver5(x,
     f = eval_op[0](*eval_op[1:],x)
     while not stop_op[0](*stop_op[1:],f, x):
         #only difference is that input parameters are at the end.
-        if monitor_op is not None: monitor_op[0](*monitor_op[0],f, x, c, d)
+        if monitor_op is not None: monitor_op[0](*monitor_op[1:],f, x, c, d)
         f = eval_op[0](*eval_op[1:],x)
     return f, x
 
@@ -171,6 +171,7 @@ def customprocessor_ver5(x,
 ### Example 1 Sampler
 import math as mt
 import random as rand
+
 jtp=nb.njit(fastmath=True, error_model='numpy',parallel=True)
 _PL_THREADS=nb.get_num_threads()
 

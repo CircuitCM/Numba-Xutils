@@ -1,19 +1,15 @@
-import numba as nb
-import numpy as np
+
+# pyrefly: ignore-errors
+#Array pointers are acting up
+
 import math as mt
 import random as rand
 
-from docutils.parsers.rst.roles import unimplemented_role
-from numba import literal_unroll
-from numba.misc.literal import literal_unroll_impl
+import aopt.calculations as calc
+import numba as nb
+import numpy as np
 
 import nbux._utils as nbu
-import aopt.utils.configs as cfg
-from aopt.calculations import jtc
-from aopt.utils.numba_ext import eigh_inplace, pinv, innermul_cself, fo, outermul_cself, cholesky_fsolve_aplace, \
-    cholesky_fsolve_inplace
-from aopt.utils.numba import placerange, ri64, type_ref, prim_info, ri64s
-import aopt.calculations as calc
 
 
 @nbu.jt
@@ -73,6 +69,7 @@ def normal_rng_protect(mu=0.,sig=1.,pr=.001):
 #Sync: jtic, because we still want the load boost when calling place_gauss from the interpreter (calling into it as pyfunc), but the benefits full compilation, which can only be assumed with inlining if we are caching the function already.
 #Parallel: jtpc, again cache for python scope call. But we can also use the cached version for jitting scope, because the overhead of calling parallel cores will already be >> than calling into an external cfunc. However it might be the case that you lose control of setting parallel chunk size outside of this function scope, but haven't checked that.
 
+
 ### Gauss
 @nbu.jtic
 def place_gauss_s(a,mu=0.,sig=0.):
@@ -86,11 +83,6 @@ def place_gauss_pl(a,mu=0.,sig=0.,):
     for i in nb.prange(itrs): ptr[i]=rand.gauss(mu,sig)
     #nb.set_parallel_chunksize(ld)
     
-# @nbu.jtc #doesn't work both functions still compiled in.
-# def place_gauss(v,mu=0.,sigma=1.,parallel=False):
-#     if nbu.force_const(parallel): place_gauss_pl(v,mu,sigma)
-#     else:place_gauss_s(v, mu, sigma)
-
 #Only method I found to be certain the rng implements are compiling separately.
 @nbu.ir_force_separate_pl(place_gauss_s,place_gauss_pl)
 def place_gauss(a,mu=0.,sigma=1.,parallel=False):
@@ -98,13 +90,22 @@ def place_gauss(a,mu=0.,sigma=1.,parallel=False):
     else:place_gauss_s(a, mu, sigma)
 
 #EXAMPLES
+@nbu.jtc #doesn't work, both the parallel and sync functions still compiled in. Seen in byte code.
+def _place_gauss(v,mu=0.,sigma=1.,parallel=False):
+    if nbu.force_const(parallel): place_gauss_pl(v,mu,sigma)
+    else:place_gauss_s(v, mu, sigma)
+
+
 @nbu.jtpc_s
-def _place_gauss(a,mu=0.,sigma=1.,parallel=False): 
-    #because of the overhead of the literal value request even after jitting, there is an extra ~80 ms calling this from the python interpreter, so use place_gauss python-mode for py_func calls.
+def _2place_gauss(a,mu=0.,sigma=1.,parallel=False): 
+    #because of the overhead of the literal value request even after jitting, there is an extra ~80 ms calling 
+    #this from the python interpreter, so use place_gauss python-mode for py_func calls.
     place_gauss(a, mu, sigma, parallel) #already compiled
+    
  
 @nbu.jtc   
-def _place_gauss_pl1(a,mu=0.,sigma=1.): #makes it just as quick as original. No 80ms overhead after const is cached inside.
+def _place_gauss_pl1(a,mu=0.,sigma=1.): 
+    #makes it just as quick as original. No 80ms overhead after const is cached inside.
     place_gauss(a, mu, sigma, True)
     
 ## offshoot unbiased random orthogonal sample

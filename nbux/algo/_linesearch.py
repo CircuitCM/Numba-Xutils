@@ -1,8 +1,11 @@
-import nbux._utils as nbu
-from ..op._misc import quadratic_newton_coef
 import math as mt
+from collections.abc import Callable
+
 import numpy as np
 
+import nbux._utils as nbu
+
+from ..op._misc import quadratic_newton_coef
 
 #For now I'm implementing the safe/bracketing methods with just this stopping criteria: when our point becomes "stationary enough". This is because for a complicated function or high order poly, the point can significantly impact the precision of the function output. However because all of these methods utilize some form of bisection fallback, we at least have a guarantee it will reach a stationary point. Depending on the optimizer there is some risk of premature stopping, but that should be extremely rare. That also means er_tol ~ root_point*(float64 epsilon). May implement a more refined stopping api in the future.
 
@@ -125,7 +128,7 @@ def _bracketed_secant(f_op, lo, hi, er_tol=1e-14, max_iters=20,sign=1):
     return lam
 
 @nbu.jt
-def signedroot_secant(f_op:callable, lo:float, hi:float,
+def signedroot_secant(f_op:Callable, lo:float, hi:float,
                       br_rate=.5, max_iters=20, sign=1,
                       eager=False,fallb=False,
                       br_tol=None,er_tol=None,rel_err=True,dtyp=None
@@ -274,7 +277,7 @@ def posroot_nofallb_secant(f_op, lo, hi,br_rate=.5, max_iters=15,br_tol=None,er_
 
 
 @nbu.jt
-def signedroot_quadinterp(f_op:callable, lo:float, hi:float, br_rate=.5, max_iters=15, sign=1,eager=True,er_tol=None,br_tol=None,dtyp=None):
+def signedroot_quadinterp(f_op:Callable, lo:float, hi:float, br_rate=.5, max_iters=15, sign=1,eager=True,er_tol=None,br_tol=None,dtyp=None):
     """
     Signed Root quadratic interpolation scheme. Functions exactly like signedroot_secant but uses a quadratic
     root solution, improving the convergence rate. This method can save more than a few iterations when the
@@ -383,7 +386,7 @@ def signedroot_quadinterp(f_op:callable, lo:float, hi:float, br_rate=.5, max_ite
 
 
 @nbu.jt
-def signedroot_newton(f_op:callable, g_op:callable, lo:float, hi:float, br_rate=.5, max_iters=12, sign=1,eager=True,er_tol=None,br_tol=None,rel_err=True,dtyp=None):
+def signedroot_newton(f_op:Callable, g_op:Callable, lo:float, hi:float, br_rate=.5, max_iters=12, sign=1,eager=True,er_tol=None,br_tol=None,rel_err=True,dtyp=None):
     """A bracketed Newton method that exploits prior knowledge about the side of the root and the desired root slope sign.
 
     Strategy mirrors the secant variant:
