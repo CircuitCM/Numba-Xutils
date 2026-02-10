@@ -188,7 +188,7 @@ def stack_empty(size,shape,dtype):
 
     Reference: https://github.com/numba/numba/issues/5084#issue-550324913
 
-    :param int size: Number of elements to allocate.
+    :param size: Number of elements to allocate.
     :param shape: Target shape.
     :param dtype: Target dtype.
     :returns: An empty array/carray with the requested shape and dtype.
@@ -276,7 +276,7 @@ def buffer_nelems_andp(arr:np.ndarray)->tuple[int,Sequence]:
       leading dimension is discontinuous, the final element is accessible as
       ``ptr[nelems - 1]``.
 
-    :param np.ndarray arr: Input array.
+    :param arr: Input array.
     :returns: ``(nelems, ptr)`` where ``ptr`` can be indexed like a 1D sequence.
     """
     #We will tell typing that this is a Sequence, because a datatype pointer will have a __getitem__.
@@ -497,7 +497,7 @@ def op_call_args(call_op:Op, args: CSeq|Any=(), defr=None):
     
     :param call_op: Callable or tuple/list whose first element is callable, remaining elements are fixed arguments.
     :param args: Arguments to apply, either as a tuple/list or a single value.
-    :return: Function output.
+    :returns: Function output.
     """
 
     if isinstance(call_op,NoneType): #so ruff doesn't complain
@@ -562,7 +562,7 @@ def op_args(call_op:Op, args: CSeq|Any=(), defr=None):
 
     :param call_op: The callable, or callable operator and attached parameters.
     :param args: The other implementation arguments that are treated as external or problem-specific inputs.
-    :return: Function output.
+    :returns: Function output.
     """
     
     if isinstance(call_op,NoneType):
@@ -610,8 +610,8 @@ def aligned_buffer(n_bytes: int, align: int = 64) -> np.ndarray:
     This function is also in ``numpy_buffermap`` but is included here so it is
     not a required dependency.
 
-    :param int n_bytes: Logical size of the returned view (in bytes).
-    :param int align: Desired byte alignment (power-of-two is assumed).
+    :param n_bytes: Logical size of the returned view (in bytes).
+    :param align: Desired byte alignment (power-of-two is assumed).
     :returns: A buffer view that is aligned to an ``align``-byte boundary.
     """
     raw = np.empty(n_bytes + align, dtype=np.uint8)
@@ -642,7 +642,7 @@ def prim_info(dt, field):
     So get the type first with ``type_ref``.
 
     :param dt: A NumPy dtype (or dtype-like).
-    :param int field: Field selector (see list above).
+    :param field: Field selector (see list above).
     :returns: The requested field value, or ``None``.
     """
     if not hasattr(dt, 'kind'):
@@ -698,9 +698,9 @@ def placerange(r,start=0,step=1):
 def swap(x,i,j):
     """Array element swap shorthand.
     
-    :param np.ndarray x: 1D array to perform element swap on. 
-    :param int i: First element index.  
-    :param int j: Second element index.
+    :param x: 1D array to perform element swap on.
+    :param i: First element index.
+    :param j: Second element index.
     :returns: None.
     """
     t=x[i]
@@ -735,9 +735,9 @@ def run_py(func,*args,**kwargs):
     """
     Numba's base python definition is inside the ``py_func`` field, if it exists we try to call it here.
     
-    :param Callable func: callable.
-    :param Sequence args: Variable unnamed ordered args.
-    :param dict kwargs: Variable named unordered kwargs.
+    :param func: callable.
+    :param args: Variable unnamed ordered args.
+    :param kwargs: Variable named unordered kwargs.
     :returns: The function result.
     """
     if hasattr(func,'py_func'):
@@ -754,11 +754,11 @@ def run_numba(func,*args,verbose=False,**kwargs):
     supported in no-python mode, it can still provide performance benefits as the numba subroutines
     will be compiled separately.
     
-    :param Callable func: callable.
-    :param Sequence args: Variable unnamed ordered args.
-    :param bool verbose: Announce if the no-python dispatch failed for the
+    :param func: callable.
+    :param args: Variable unnamed ordered args.
+    :param verbose: Announce if the no-python dispatch failed for the
         function before running in python mode.
-    :param dict kwargs: Variable named unordered kwargs.
+    :param kwargs: Variable named unordered kwargs.
     :returns: The function result.
     """
     try:
@@ -844,7 +844,7 @@ def ir_force_separate_pl(sync_impl, pl_impl):
     
     :param sync_impl: The (only) synchronous implementation of the numba function.
     :param pl_impl: The parallel implementation of the numba function.
-    :return: A decorator that constructs an overloads function around the python-only version.
+    :returns: A decorator that constructs an overloads function around the python-only version.
     """
     return lambda ov_def: _ov_pl_factory(sync_impl,pl_impl,ov_def)
  

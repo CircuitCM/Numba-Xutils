@@ -20,9 +20,9 @@ def gershgorin_l1_norms(A,t1,t2):
     1. Extract diag and abs(diag).
     2. Tight nested loop to accumulate column L1 sums.
 
-    :param np.ndarray A: Symmetric matrix (C-order assumed).
-    :param np.ndarray t1: Work buffer (used for column sums; must be zeroed by caller).
-    :param np.ndarray t2: Work buffer (used for diagonal values).
+    :param A: Symmetric matrix (C-order assumed).
+    :param t1: Work buffer (used for column sums; must be zeroed by caller).
+    :param t2: Work buffer (used for diagonal values).
     :returns: ``(anorm, diag, rad)``.
     """
     n = A.shape[0]
@@ -61,18 +61,18 @@ def lars1_constraintsolve(A, y, out,
 
     for gradient solution n is # unique samples, m is gradient dimensions.
 
-    :param np.ndarray A: Measurement matrix (shape ``(n, m)``, ``n <= m``).
-    :param np.ndarray y: Observed measurements (shape ``(n,)``).
-    :param np.ndarray out: Output solution vector (shape ``(m,)``).
-    :param np.ndarray At: Work buffer.
-    :param np.ndarray T1: Work buffer.
-    :param np.ndarray T2: Work buffer.
-    :param np.ndarray T3: Work buffer.
-    :param np.ndarray C: Work buffer.
-    :param np.ndarray I: Work buffer.
-    :param np.ndarray Ib: Work buffer.
-    :param float eps: Residual tolerance.
-    :param float l2cond: Conditioning parameter (``-1.`` uses a heuristic default).
+    :param A: Measurement matrix (shape ``(n, m)``, ``n <= m``).
+    :param y: Observed measurements (shape ``(n,)``).
+    :param out: Output solution vector (shape ``(m,)``).
+    :param At: Work buffer.
+    :param T1: Work buffer.
+    :param T2: Work buffer.
+    :param T3: Work buffer.
+    :param C: Work buffer.
+    :param I: Work buffer.
+    :param Ib: Work buffer.
+    :param eps: Residual tolerance.
+    :param l2cond: Conditioning parameter (``-1.`` uses a heuristic default).
     :returns: ``out`` (solution vector).
     """
     
@@ -227,8 +227,8 @@ def durstenfeld_p_shuffle(a, k=_I64):
     Perform up to k swaps of the Durstenfeld shuffle on array 'v'.
     Shuffling should still be unbiased even if a isn't changed back to sorted.
 
-    :param np.ndarray a: Array to shuffle in-place.
-    :param int k: Maximum number of swaps.
+    :param a: Array to shuffle in-place.
+    :param k: Maximum number of swaps.
     :returns: None.
     """
     n = a.shape[0]
@@ -266,7 +266,7 @@ def edge_sample(bounds, num):
     Sample points along the edges of a hyperrectangle.
 
     :param bounds: Bounds per dimension as ``(lower, upper)`` pairs.
-    :param int num: Number of samples per edge.
+    :param num: Number of samples per edge.
 
     :returns: An array of shape ``(total_points, dim)`` where
         ``total_points = num * (dim * 2^(dim-1))`` for ``dim > 1``. For 1-D,

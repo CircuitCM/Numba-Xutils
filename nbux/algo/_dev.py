@@ -9,20 +9,20 @@ def lars1_constraintsolve_dev(A, y,out,
     
     for gradient solution m is # unique samples, n is gradient dimensions.
 
-    :param np.ndarray A: Measurement matrix (shape ``(m, n)``, ``m <= n``).
-    :param np.ndarray y: Observed measurements (shape ``(m,)``).
-    :param np.ndarray out: Output solution vector (shape ``(n,)``).
-    :param np.ndarray At: Work buffer.
-    :param np.ndarray T1: Work buffer.
-    :param np.ndarray T2: Work buffer.
-    :param np.ndarray T3: Work buffer.
-    :param np.ndarray C: Work buffer.
-    :param np.ndarray I: Work buffer.
-    :param np.ndarray Ib: Work buffer.
-    :param float eps: Residual tolerance.
-    :param bool verbose: Verbosity flag.
-    :param int mxitrs: Maximum iterations (``-1`` uses a heuristic default).
-    :param float l2cond: Conditioning parameter (``-1.`` uses a heuristic default).
+    :param A: Measurement matrix (shape ``(m, n)``, ``m <= n``).
+    :param y: Observed measurements (shape ``(m,)``).
+    :param out: Output solution vector (shape ``(n,)``).
+    :param At: Work buffer.
+    :param T1: Work buffer.
+    :param T2: Work buffer.
+    :param T3: Work buffer.
+    :param C: Work buffer.
+    :param I: Work buffer.
+    :param Ib: Work buffer.
+    :param eps: Residual tolerance.
+    :param verbose: Verbosity flag.
+    :param mxitrs: Maximum iterations (``-1`` uses a heuristic default).
+    :param l2cond: Conditioning parameter (``-1.`` uses a heuristic default).
     :returns: ``out`` (solution vector).
     """
       

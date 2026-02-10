@@ -14,7 +14,7 @@ def impl_insert_sort(sr, comp_call):
     (Tested several slightly different implementations; this had the best
     performance for Numba ``njit`` compilation.)
 
-    :param np.ndarray sr: Array to sort in-place.
+    :param sr: Array to sort in-place.
     :param comp_call: Comparator callable.
     :returns: None.
     """
@@ -67,9 +67,9 @@ def make_merge_sort(argsort=False,top_down=True,ins_sep=56):
     - ``vals`` is ``None`` for normal sort (or the values array for argsort),
     - ``ws`` is a workspace array of size ``idxr.size // 2``.
 
-    :param bool argsort: If True, build an argsort variant.
-    :param bool top_down: If True, build the top-down recursive variant.
-    :param int ins_sep: Insert-sort cutoff.
+    :param argsort: If True, build an argsort variant.
+    :param top_down: If True, build the top-down recursive variant.
+    :param ins_sep: Insert-sort cutoff.
     :returns: A Numba-jittable ``merge_sort`` function.
     """
     SMALL_MERGESORT=ins_sep
@@ -215,14 +215,15 @@ merge_sort=make_merge_sort(False,True,56)
 #I'm adding search sorted here as unlike smooth/non-smooth lines, this is for finite sets.
 @nbu.jt
 def binary_argsearch(x,v,unsafe=None):
-    """Search sorted with tradeoff for a little perf benefit on small arrays, tradeoff calculated for f64.
-    
-    For a few more microseconds set unsafe not None, but there MUST be a value in x smaller than v or it 
+    """
+    Search sorted with tradeoff for a little perf benefit on small arrays, tradeoff calculated for f64.
+
+    For a few more microseconds set unsafe not None, but there MUST be a value in x smaller than v or it
     will not terminate.
-    
+
     May add Argsearch sorted later.
 
-    :param np.ndarray x: Sorted array.
+    :param x: Sorted array.
     :param v: Search value.
     :param unsafe: If not None, enables an unsafe fast-path (see notes above).
     :returns: The insertion index.
@@ -233,10 +234,11 @@ def binary_argsearch(x,v,unsafe=None):
         return np.searchsorted(x,v)
 
 def _sqleq_arg(x,v,unsafe=None):
-    """Sequential less than or equal right step. Unsafe not None will give you a small perf boost, but v MUST be in x.
+    """
+    Sequential less than or equal right step. Unsafe not None will give you a small perf boost, but v MUST be in x.
     Note: NASA would hate this.
 
-    :param np.ndarray x: Sorted array.
+    :param x: Sorted array.
     :param v: Search value (must be present in ``x`` when unsafe mode is used).
     :param unsafe: If not None, enables an unsafe fast-path.
     :returns: The insertion index.

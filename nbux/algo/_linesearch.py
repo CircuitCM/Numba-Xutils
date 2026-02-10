@@ -23,8 +23,8 @@ def not0_bisect(f_op,lo,hi,max_iters=200,side=1,typ=np.float64):
     :param f_op: Function or operator tuple (see ``nbu.op_call_args``).
     :param lo: Lower bound.
     :param hi: Upper bound.
-    :param int max_iters: Iteration limit.
-    :param int side: Boundary convention (``1`` or ``-1``).
+    :param max_iters: Iteration limit.
+    :param side: Boundary convention (``1`` or ``-1``).
     :param typ: Scalar type used for comparisons.
     :returns: The value just before the zero boundary.
     """
@@ -51,9 +51,9 @@ def root_bisect(f_op,lo,hi,max_iters=60,typ=np.float64,er_tol = 1e-14):
     :param f_op: Function or operator tuple (see ``nbu.op_call_args``).
     :param lo: Lower bound.
     :param hi: Upper bound.
-    :param int max_iters: Iteration limit.
+    :param max_iters: Iteration limit.
     :param typ: Scalar type used for comparisons.
-    :param float er_tol: Step-size tolerance.
+    :param er_tol: Step-size tolerance.
     :returns: ``(lo, hi)`` final bracket.
     """
     ict=np.int64(max_iters)
@@ -195,7 +195,7 @@ def signedroot_secant(f_op:Callable, lo:float, hi:float,
 
     Variable calculations are all f64.
 
-    :param callable f_op: Can be a function or a function operator (tuple) that includes its arguments. It receives a single scalar value for the point estimate. 
+    :param f_op: Can be a function or a function operator (tuple) that includes its arguments. It receives a single scalar value for the point estimate. 
     :param lo: Starting lower bound.
     :param hi: Starting upper bound.
     :param br_rate: (0,1). The bracket increment, at .5 it's classic bisection, less than .5 it will bracket more conservatively, greater than .5 it's more eager.
@@ -208,7 +208,8 @@ def signedroot_secant(f_op:Callable, lo:float, hi:float,
     :param rel_err: Is bracket fallback tolerance based on value relative error or absolute value. Typically value relative is correct unless you know there is a constant error rate in value measurements (e.g. noise or discrete surface).
     :param dtyp: The data type that the root search should operate with. This will convert all computations and values to this datatype. If left as None, the datatype will be gathered from the input type of lo.
     
-    :return: The latest root estimate, most recent bracket range and return reason: 0 Success. 1 Failed to converge. 2 No opposite bound located.
+    :returns: The latest root estimate, most recent bracket range and return reason:
+        0 Success. 1 Failed to converge. 2 No opposite bound located.
     """
     
     if dtyp is None: dtyp=nbu.type_ref(lo) # which will default to f64 unless dtyp is specified
@@ -422,7 +423,8 @@ def signedroot_quadinterp(f_op:Callable, lo:float, hi:float, br_rate=.5, max_ite
 
 @nbu.jt
 def signedroot_newton(f_op:Callable, g_op:Callable, lo:float, hi:float, br_rate=.5, max_iters=12, sign=1,eager=True,er_tol=None,br_tol=None,rel_err=True,dtyp=None):
-    """A bracketed Newton method that exploits prior knowledge about the side of the root and the desired root slope sign.
+    """
+    A bracketed Newton method that exploits prior knowledge about the side of the root and the desired root slope sign.
   
     Strategy mirrors the secant variant:
       * We bias steps using knowledge of which side of the root is positive/negative (via ``sign``).
@@ -505,7 +507,8 @@ def signedroot_newton(f_op:Callable, g_op:Callable, lo:float, hi:float, br_rate=
 
 @nbu.jt
 def signseeking_halley(f_op, g_op,c_op, lo, hi, br_rate=.5, max_iters=12, sign=1, eager=True,er_tol=None,br_tol=None,rel_err=True,dtyp=None):
-    """A bracketed halley method that exploits prior knowledge about the side of the root and the desired root slope sign.
+    """
+    A bracketed halley method that exploits prior knowledge about the side of the root and the desired root slope sign.
       
       Notes from Newton version, assume Halley:
       Strategy mirrors the secant variant:
@@ -606,8 +609,8 @@ def brents_method(f_op, lo, hi, er_tol=1e-12, max_iters=50):
     :param f_op: Function or operator tuple (see ``nbu.op_call_args``).
     :param lo: Lower bracket.
     :param hi: Upper bracket.
-    :param float er_tol: Step-size tolerance.
-    :param int max_iters: Iteration limit.
+    :param er_tol: Step-size tolerance.
+    :param max_iters: Iteration limit.
     :returns: Root estimate.
     """
     a = float(lo)

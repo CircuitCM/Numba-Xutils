@@ -11,12 +11,12 @@ def quadratic_newton_coef(x0, x1, x2, f0, f1, f2):
     """
     Quadratic polynomial coefficients using Newton's divided differences procedure.
 
-    :param float x0: First x sample.
-    :param float x1: Second x sample.
-    :param float x2: Third x sample.
-    :param float f0: ``f(x0)``.
-    :param float f1: ``f(x1)``.
-    :param float f2: ``f(x2)``.
+    :param x0: First x sample.
+    :param x1: Second x sample.
+    :param x2: Third x sample.
+    :param f0: ``f(x0)``.
+    :param f1: ``f(x1)``.
+    :param f2: ``f(x2)``.
     :returns: ``(a, b, c)`` coefficients for ``a*x**2 + b*x + c``.
     """
     # Compute divided differences
@@ -41,14 +41,14 @@ def cubic_newton_coef(
     """
     Cubic polynomial coefficients using Newton's divided differences procedure.
 
-    :param float x0: First x sample.
-    :param float x1: Second x sample.
-    :param float x2: Third x sample.
-    :param float x3: Fourth x sample.
-    :param float f0: ``f(x0)``.
-    :param float f1: ``f(x1)``.
-    :param float f2: ``f(x2)``.
-    :param float f3: ``f(x3)``.
+    :param x0: First x sample.
+    :param x1: Second x sample.
+    :param x2: Third x sample.
+    :param x3: Fourth x sample.
+    :param f0: ``f(x0)``.
+    :param f1: ``f(x1)``.
+    :param f2: ``f(x2)``.
+    :param f3: ``f(x3)``.
     :returns: ``(a, b, c, d)`` coefficients for ``a*x**3 + b*x**2 + c*x + d``.
     """
     c1 = (f1 - f0)/(x1 - x0)
@@ -161,7 +161,7 @@ def sqr_lh(out):
     """
     Square matrix lower-half fill.
 
-    :param np.ndarray out: Square matrix to fill in-place.
+    :param out: Square matrix to fill in-place.
     :returns: None.
     """
     #doesn't matter if first or second axis, as this is v square matrix.
@@ -176,7 +176,7 @@ def sqr_uh(out):
     """
     Square matrix upper-half fill.
 
-    :param np.ndarray out: Square matrix to fill in-place.
+    :param out: Square matrix to fill in-place.
     :returns: None.
     """
     #doesn't matter if first or second axis, as this is v square matrix.
@@ -207,12 +207,12 @@ else:
         shape ``(m, m)``. If ``outer`` is False (inner), then ``out`` has shape
         ``(n, n)``.
 
-        :param np.ndarray a: Input matrix.
-        :param np.ndarray out: Output matrix (written in-place).
-        :param float a_mult: Multiplier applied to ``a`` (or ``a.conj()``).
-        :param float rem_mult: Multiplier for combining with an existing ``out``.
-        :param bool sym: If True, treat output as symmetric (currently unused).
-        :param bool outer: Whether to compute the outer or inner product variant.
+        :param a: Input matrix.
+        :param out: Output matrix (written in-place).
+        :param a_mult: Multiplier applied to ``a`` (or ``a.conj()``).
+        :param rem_mult: Multiplier for combining with an existing ``out``.
+        :param sym: If True, treat output as symmetric (currently unused).
+        :param outer: Whether to compute the outer or inner product variant.
         :returns: ``out``.
         """
         at=nbu.type_ref(a)
