@@ -300,7 +300,6 @@ def insert_sort4(arr): #fastest
         k = arr[i]
         j = i
         while j > 0 and k < arr[j - 1]:
-            # Make place for moving A[i] downwards
             arr[j] = arr[j - 1]
             j -= 1
         arr[j] = k

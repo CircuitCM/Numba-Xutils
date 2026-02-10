@@ -17,6 +17,10 @@ def durstenfeld_p_shuffle(a, k=None):
     """
     Perform up to k swaps of the Durstenfeld shuffle on array 'v'.
     Shuffling should still be unbiased even if a isn't changed back to sorted.
+
+    :param np.ndarray a: Array to shuffle in-place.
+    :param int|None k: Number of swaps (defaults to ``a.shape[0] - 1``).
+    :returns: None.
     """
     n = a.shape[0]
     num_swaps = n-1 if k is None else k

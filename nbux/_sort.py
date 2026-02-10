@@ -10,7 +10,13 @@ import math as mt
 def impl_insert_sort(sr, comp_call):
     """
     Insertion sort.
-    (Tested several slightly different implementations, this had the best performance for numba njit compilation).
+
+    (Tested several slightly different implementations; this had the best
+    performance for Numba ``njit`` compilation.)
+
+    :param np.ndarray sr: Array to sort in-place.
+    :param comp_call: Comparator callable.
+    :returns: None.
     """
     for i in range(1, sr.shape[0]):
         k = sr[i]
@@ -47,19 +53,24 @@ def arg_insert_sort(sr, idxr, small_first=True):
 #SMALL_MERGESORT = 20 #original size, ~50 seems to provide better performance profile over large range
 
 def make_merge_sort(argsort=False,top_down=True,ins_sep=56):
-    """Taken from numba merge sort implementation, letting the user sort already initialized arrays.
-    Also from my testing, this merge sort implementation seems to be always quicker than numba's quick sort.
-    Maybe because of too many func pointers and being generic idk.
+    """
+    Create a merge sort implementation for Numba.
 
-    Parameters
-    ----------
-    idxr : array [read+write]
-        The values being sorted inplace.  For argsort, this is the
-        indices.
-    vals : array [readonly]
-        ``None`` for normal sort.  In argsort, this is the actual array values.
-    ws : array [write]
-        The workspace.  Must be of size ``idxr.size // 2``
+    Taken from Numba's merge sort implementation, letting the user sort already
+    initialized arrays. From local testing, this merge sort appears to be
+    consistently quicker than Numba's quick sort.
+
+    The returned ``merge_sort`` callable has the signature
+    ``merge_sort(idxr, vals, ws, ...)`` where:
+
+    - ``idxr`` is the array sorted in-place (or indices for argsort),
+    - ``vals`` is ``None`` for normal sort (or the values array for argsort),
+    - ``ws`` is a workspace array of size ``idxr.size // 2``.
+
+    :param bool argsort: If True, build an argsort variant.
+    :param bool top_down: If True, build the top-down recursive variant.
+    :param int ins_sep: Insert-sort cutoff.
+    :returns: A Numba-jittable ``merge_sort`` function.
     """
     SMALL_MERGESORT=ins_sep
     if argsort:
@@ -210,6 +221,11 @@ def binary_argsearch(x,v,unsafe=None):
     will not terminate.
     
     May add Argsearch sorted later.
+
+    :param np.ndarray x: Sorted array.
+    :param v: Search value.
+    :param unsafe: If not None, enables an unsafe fast-path (see notes above).
+    :returns: The insertion index.
     """
     if x.size>165:
         return _sqleq_arg(x,v,unsafe)
@@ -219,6 +235,11 @@ def binary_argsearch(x,v,unsafe=None):
 def _sqleq_arg(x,v,unsafe=None):
     """Sequential less than or equal right step. Unsafe not None will give you a small perf boost, but v MUST be in x.
     Note: NASA would hate this.
+
+    :param np.ndarray x: Sorted array.
+    :param v: Search value (must be present in ``x`` when unsafe mode is used).
+    :param unsafe: If not None, enables an unsafe fast-path.
+    :returns: The insertion index.
     """
     pass
 

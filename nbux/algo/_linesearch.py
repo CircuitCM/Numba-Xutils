@@ -14,7 +14,20 @@ from ..op._misc import quadratic_newton_coef
 
 @nbu.rgi
 def not0_bisect(f_op,lo,hi,max_iters=200,side=1,typ=np.float64):
-    """A method that bisects any function by: not zero on left side and zero on right side, or vice versa if side=-1. Returns the value just before the zero boundary."""
+    """
+    Bisect a function on a not-zero/zero boundary.
+
+    If ``side == 1`` the left side is treated as "not zero" and the right side
+    as "zero"; if ``side == -1`` the roles are reversed.
+
+    :param f_op: Function or operator tuple (see ``nbu.op_call_args``).
+    :param lo: Lower bound.
+    :param hi: Upper bound.
+    :param int max_iters: Iteration limit.
+    :param int side: Boundary convention (``1`` or ``-1``).
+    :param typ: Scalar type used for comparisons.
+    :returns: The value just before the zero boundary.
+    """
     ict=np.int64(max_iters)
     lam = 0.5 * (lo + hi)
     _0=typ(0)
@@ -32,7 +45,17 @@ def not0_bisect(f_op,lo,hi,max_iters=200,side=1,typ=np.float64):
 
 @nbu.rgi
 def root_bisect(f_op,lo,hi,max_iters=60,typ=np.float64,er_tol = 1e-14):
-    """Root bisect, for unstable/discrete-ish roots."""
+    """
+    Root bisection, for unstable/discrete-ish roots.
+
+    :param f_op: Function or operator tuple (see ``nbu.op_call_args``).
+    :param lo: Lower bound.
+    :param hi: Upper bound.
+    :param int max_iters: Iteration limit.
+    :param typ: Scalar type used for comparisons.
+    :param float er_tol: Step-size tolerance.
+    :returns: ``(lo, hi)`` final bracket.
+    """
     ict=np.int64(max_iters)
     lam = 0.5 * (lo + hi)
     _0=typ(0)
@@ -50,14 +73,20 @@ def root_bisect(f_op,lo,hi,max_iters=60,typ=np.float64,er_tol = 1e-14):
 
 @nbu.rgi #register jittable with inlining, in interpreter runs as py func, but compiles with inlining when referenced in jit decorated scope.
 def _bracketed_newton(fd_op, lo, hi, er_tol=1e-14, max_iters=20,sign=1):
-    """Newton step with fallback to generic bisection if it steps out of bounds. This is a root finding algorithm. fd_op returns f, fp, value and value gradient.
-    
+    """
+    Newton step with fallback to generic bisection if it steps out of bounds.
+
+    This is a root finding algorithm. ``fd_op`` returns ``(f, fp)``: value and
+    value gradient.
+      
     Variable calculations are all f64.
-    
+      
     :param fd_op: Can be a function or a function operator (tuple). It recieves a single scalar value for the point estimate.
     :param sign: =1 we expect to have f(lo)<f(root)<f(hi). if -1 we expect f(lo)>f(root)>f(hi). If this expectation is unknown, it controls the bracketing bias eg if f is all positives then the bracket will halve from left to right until reaching hi, if negatives vice versa. Note: both sides wrong could make convergence messy. However it can still work with a high likelihood if we only know the sign of either lo or hi, and that our target root has a root on the opposite sign side.
-    
+      
     Notes: Convergence is only guaranteed when there is a single root within the bracket.
+
+    :returns: Root estimate.
     """
     #while loops are faster with premature breaks in numba.
     ict=np.int64(max_iters)
@@ -95,8 +124,10 @@ def _bracketed_secant(f_op, lo, hi, er_tol=1e-14, max_iters=20,sign=1):
 
     :param f_op: Can be a function or a function operator (tuple). It receives a single scalar value for the point estimate.
     :param sign: =1 we expect to have f(lo)<f(root)<f(hi). if -1 we expect f(lo)>f(root)>f(hi). If this expectation is unknown, it controls the bracketing bias eg if f is all positives and sign=1, then the bracket will halve from right to left until reaching hi, if negatives and sign=1 then left to right. Note: If both sides are wrong then convergence is impossible. However, it still converges with a high likelihood if we only know the sign of either lo or hi, and that our target root has a root on the opposite sign side.
-
+  
     Other Notes: Convergence is only guaranteed when there is a single root within the bracket. In a two root scenario because of how bracketing is handled, this method will always converge to the root with sign(slope)=sign (if it converges at all). Sign=-1: left root, =1: right root. Brent's method doesn't have this issue but is significantly slower. See alternative methods that can deal with multiple roots. 
+
+    :returns: Root estimate.
     """
     fo, f = nbu.op_call_args(f_op, lo), nbu.op_call_args(f_op, hi)
     if sign == -1:
@@ -133,9 +164,10 @@ def signedroot_secant(f_op:Callable, lo:float, hi:float,
                       eager=False,fallb=False,
                       br_tol=None,er_tol=None,rel_err=True,dtyp=None
                       )->tuple[float,float,float,int]:
-    """A bracketed secant method that achieves (empirically) faster convergence by knowing the sign of the function to the left and right of the root.
+    """
+    A bracketed secant method that achieves (empirically) faster convergence by knowing the sign of the function to the left and right of the root.
     It also allows us to select if the slope of our root is positive or negative when there are multiple roots. Which corresponds to finding local maxima or minima of the integrated line.
-
+  
     The secant method uses the two most recent points with fall back to the third most recent point (if enabled).
     This typically gets the most out of the secant method, and demonstrates it's benefit
     under significant variability across the root.
@@ -271,6 +303,8 @@ def posroot_nofallb_secant(f_op, lo, hi,br_rate=.5, max_iters=15,br_tol=None,er_
     However kwargs that are not called in the function header will also get statically compiled for that signature.
     So it's also fine to treat it as a wrapper that changes all default args, and the function should get the same
     compile time benefits.
+
+    :returns: See ``signedroot_secant``.
     """
     return signedroot_secant(f_op, lo, hi, br_rate, max_iters, 1, True, False, br_tol, er_tol, True, dtyp)
 
@@ -291,6 +325,7 @@ def signedroot_quadinterp(f_op:Callable, lo:float, hi:float, br_rate=.5, max_ite
     just an expectation depending on how compatible the error order is. With high root curvature it can 
     even end up with only 1/2 the number of steps.
     
+    :returns: See ``signedroot_secant``.
     """
     if dtyp is None: dtyp=nbu.type_ref(lo) # which will default to f64 unless dtyp is specified
     if br_tol is None:br_tol=nbu.prim_info(dtyp,2)**(2/3)
@@ -388,13 +423,13 @@ def signedroot_quadinterp(f_op:Callable, lo:float, hi:float, br_rate=.5, max_ite
 @nbu.jt
 def signedroot_newton(f_op:Callable, g_op:Callable, lo:float, hi:float, br_rate=.5, max_iters=12, sign=1,eager=True,er_tol=None,br_tol=None,rel_err=True,dtyp=None):
     """A bracketed Newton method that exploits prior knowledge about the side of the root and the desired root slope sign.
-
+  
     Strategy mirrors the secant variant:
-      * We bias steps using knowledge of which side of the root is positive/negative (via `sign`).
+      * We bias steps using knowledge of which side of the root is positive/negative (via ``sign``).
       * We preserve bisection-style bracketing to guarantee convergence when the Newton step misbehaves.
       * We only accept Newton steps that land in an admissible sub-interval (or the full bracket once op_bracket is True).
       * Before a negative-slope target (sign == -1) we flip signs so the effective problem is always increasing in the bracket:
-        lo => negative, hi => positive. The derivative is also flipped consistently.
+          lo => negative, hi => positive. The derivative is also flipped consistently.
 
     Notes:
       * If the derivative goes tiny, we fall back to a bracketing step.
@@ -407,6 +442,7 @@ def signedroot_newton(f_op:Callable, g_op:Callable, lo:float, hi:float, br_rate=
     :param g_op: gradient operator; nbu.op_call_args(g_op, x) -> f'(x).
     :param br_rate: (0,1). Bracket increment (0.5 = classic bisection).
     :param sign: =1 means we expect f(lo)<f(root)<f(hi); =-1 means f(lo)>f(root)>f(hi).
+    :returns: ``(root, lo, hi, status)`` (see return statement for status codes).
     """
     if dtyp is None: dtyp=nbu.type_ref(lo) # which will default to f64 unless dtyp is specified
     if br_tol is None: br_tol=nbu.prim_info(dtyp,2)**(2/3)
@@ -470,14 +506,14 @@ def signedroot_newton(f_op:Callable, g_op:Callable, lo:float, hi:float, br_rate=
 @nbu.jt
 def signseeking_halley(f_op, g_op,c_op, lo, hi, br_rate=.5, max_iters=12, sign=1, eager=True,er_tol=None,br_tol=None,rel_err=True,dtyp=None):
     """A bracketed halley method that exploits prior knowledge about the side of the root and the desired root slope sign.
-    
-    Notes from Newton version, assume Halley:
-    Strategy mirrors the secant variant:
-      * We bias steps using knowledge of which side of the root is positive/negative (via `sign`).
-      * We preserve bisection-style bracketing to guarantee convergence when the Newton step misbehaves.
-      * We only accept Newton steps that land in an admissible sub-interval (or the full bracket once op_bracket is True).
-      * Before a negative-slope target (sign == -1) we flip relations so the effective problem is always increasing in the bracket:
-        lo => negative, hi => positive.
+      
+      Notes from Newton version, assume Halley:
+      Strategy mirrors the secant variant:
+        * We bias steps using knowledge of which side of the root is positive/negative (via ``sign``).
+        * We preserve bisection-style bracketing to guarantee convergence when the Newton step misbehaves.
+        * We only accept Newton steps that land in an admissible sub-interval (or the full bracket once op_bracket is True).
+        * Before a negative-slope target (sign == -1) we flip relations so the effective problem is always increasing in the bracket:
+          lo => negative, hi => positive.
 
     Notes:
       * If the derivative goes tiny, we fall back to a bracketing step.
@@ -488,9 +524,10 @@ def signseeking_halley(f_op, g_op,c_op, lo, hi, br_rate=.5, max_iters=12, sign=1
 
     :param f_op: function or operator tuple; called via nbu.op_call_args(f_op, x) -> f(x).
     :param g_op: gradient operator; nbu.op_call_args(g_op, x) -> f'(x).
-    :param g_op: c_op
+    :param c_op: curvature operator; nbu.op_call_args(c_op, x) -> f''(x).
     :param br_rate: (0,1). Bracket increment (0.5 = classic bisection).
     :param sign: =1 means we expect f(lo)<f(root)<f(hi); =-1 means f(lo)>f(root)>f(hi).
+    :returns: ``(root, lo, hi, status)`` (see return statement for status codes).
     """
     if dtyp is None: dtyp=nbu.type_ref(lo) # which will default to f64 unless dtyp is specified
     if br_tol is None:br_tol=nbu.prim_info(dtyp,2)#**(2/3)
@@ -555,11 +592,23 @@ def signseeking_halley(f_op, g_op,c_op, lo, hi, br_rate=.5, max_iters=12, sign=1
 
 @nbu.rgi
 def brents_method(f_op, lo, hi, er_tol=1e-12, max_iters=50):
-    """ NOTE: In reality this method appears to almost never outperform the bracketed secant or quadinterp method, converging in more steps. But all have smooth convergence guarantees from the bisection bracket.
-    
+    """
+    Brent's method.
+
+    NOTE: In reality this method appears to almost never outperform the
+    bracketed secant or quadinterp method, converging in more steps. But all
+    have smooth convergence guarantees from the bisection bracket.
+
     Original Brent's method per Wikipedia (inverse quadratic interpolation + secant + bisection),
     no pre-bisection. Requires the caller to provide a valid bracket with f(lo)*f(hi) <= 0.
     Stopping: 'stationary enough' on b, i.e. |b - b_prev| < er_tol.
+
+    :param f_op: Function or operator tuple (see ``nbu.op_call_args``).
+    :param lo: Lower bracket.
+    :param hi: Upper bracket.
+    :param float er_tol: Step-size tolerance.
+    :param int max_iters: Iteration limit.
+    :returns: Root estimate.
     """
     a = float(lo)
     b = float(hi)

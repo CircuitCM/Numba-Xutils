@@ -1,7 +1,7 @@
 import numba as nb
 import numpy as np
+from . import vector as opv
 
-import _vector as opv
 from nbux import _utils as nbu
 
 BLAS_PACK=False
@@ -10,6 +10,14 @@ BLAS_PACK=False
 def quadratic_newton_coef(x0, x1, x2, f0, f1, f2):
     """
     Quadratic polynomial coefficients using Newton's divided differences procedure.
+
+    :param float x0: First x sample.
+    :param float x1: Second x sample.
+    :param float x2: Third x sample.
+    :param float f0: ``f(x0)``.
+    :param float f1: ``f(x1)``.
+    :param float f2: ``f(x2)``.
+    :returns: ``(a, b, c)`` coefficients for ``a*x**2 + b*x + c``.
     """
     # Compute divided differences
     c1 = (f1 - f0) / (x1 - x0)
@@ -32,6 +40,16 @@ def cubic_newton_coef(
         f0, f1, f2, f3):
     """
     Cubic polynomial coefficients using Newton's divided differences procedure.
+
+    :param float x0: First x sample.
+    :param float x1: Second x sample.
+    :param float x2: Third x sample.
+    :param float x3: Fourth x sample.
+    :param float f0: ``f(x0)``.
+    :param float f1: ``f(x1)``.
+    :param float f2: ``f(x2)``.
+    :param float f3: ``f(x3)``.
+    :returns: ``(a, b, c, d)`` coefficients for ``a*x**3 + b*x**2 + c*x + d``.
     """
     c1 = (f1 - f0)/(x1 - x0)
     f12 = (f2 - f1)/(x2 - x1)
@@ -63,9 +81,13 @@ def cubic_lagrange_coef(
     x0, x1, x2, x3,
     f0, f1, f2, f3
 ):
-    """Cubic polynomial coefficients calculated by lagrange interpolation.
-    
-    From my tests this is both slower and less accurate than cubic newton differences.
+    """
+    Cubic polynomial coefficients calculated by Lagrange interpolation.
+
+    From local tests this is both slower and less accurate than cubic Newton
+    differences.
+
+    :returns: ``(a, b, c, d)`` coefficients for ``a*x**3 + b*x**2 + c*x + d``.
     """
     # barycentric weights w_i = 1 / Π_{j≠i} (x_i - x_j)
     c1=(x0 - x1)
@@ -120,14 +142,28 @@ def cubic_lagrange_coef(
 
 @nbu.rgi
 def horner_eval(x,coefs):
-    """Horner eval kernel. Because it uses inline, coefs can be v tuple and receive full unrolling benefits. Or an array."""
+    """
+    Horner evaluation kernel.
+
+    Because it uses inline, ``coefs`` can be a tuple and receive full unrolling
+    benefits, or an array.
+
+    :param x: Evaluation point.
+    :param coefs: Coefficients sequence.
+    :returns: Polynomial value.
+    """
     v=coefs[0]
     for c in nb.literal_unroll(coefs[1:]): v=v*x+c
     return v
 
 @nbu.jtic
 def sqr_lh(out):
-    """Square matrix lower half fill."""
+    """
+    Square matrix lower-half fill.
+
+    :param np.ndarray out: Square matrix to fill in-place.
+    :returns: None.
+    """
     #doesn't matter if first or second axis, as this is v square matrix.
     #There is only one write port, but two load ports, so technically going contiguous on the write port should be more efficient.
     #test this later.
@@ -137,7 +173,12 @@ def sqr_lh(out):
 
 @nbu.jtic
 def sqr_uh(out):
-    """Square matrix upper half fill."""
+    """
+    Square matrix upper-half fill.
+
+    :param np.ndarray out: Square matrix to fill in-place.
+    :returns: None.
+    """
     #doesn't matter if first or second axis, as this is v square matrix.
     #There is only one write port, but two load ports, so technically going contiguous on the write port should be more efficient.
     #test this later.
@@ -159,8 +200,21 @@ if BLAS_PACK:
 else:
     @nbu.jtc
     def mmul_cself(a,out,a_mult=1.,rem_mult=0.,sym=False,outer=True):
-        """ If outer true and (m,n) then out (m,m). if outer false (its inner) (n,n).
-        Matrix multiply self, c ordered. So the last/outer dimension of the array forms the square. inner mul is first dimension."""
+        """
+        Matrix multiply self (C-ordered).
+
+        If ``outer`` is True and ``a`` has shape ``(m, n)``, then ``out`` has
+        shape ``(m, m)``. If ``outer`` is False (inner), then ``out`` has shape
+        ``(n, n)``.
+
+        :param np.ndarray a: Input matrix.
+        :param np.ndarray out: Output matrix (written in-place).
+        :param float a_mult: Multiplier applied to ``a`` (or ``a.conj()``).
+        :param float rem_mult: Multiplier for combining with an existing ``out``.
+        :param bool sym: If True, treat output as symmetric (currently unused).
+        :param bool outer: Whether to compute the outer or inner product variant.
+        :returns: ``out``.
+        """
         at=nbu.type_ref(a)
         _0=at(0.)
         _1=at(1.)
@@ -187,12 +241,13 @@ else:
     
     @nbu.jt
     def potrs(L,x):
-        '''
-        An unoptimized potrs substitute.
-        :param L: The lower factored matrix
-        :param x: The initial system vector, solution is overwritten here.
-        :return: 
-        '''
+        """
+        An unoptimized ``potrs`` substitute.
+
+        :param L: The lower factored matrix.
+        :param x: The initial system vector (solution is overwritten in-place).
+        :returns: ``x`` (the solution vector).
+        """
         typ=nbu.type_ref(x)
         _0=typ(0.)
         n = x.shape[0]

@@ -1,6 +1,9 @@
-import aopt.utils.numba as nbu
-import numpy as np
 import math as mt
+from typing import Tuple
+
+import numpy as np
+
+import nbux._utils as nbu
 
 
 # two dashes are old definitions or just unecessary.
@@ -40,7 +43,7 @@ def doti(x: np.ndarray) -> float:
     return v
 
 @nbu.jti
-def tridot(x: np.ndarray, y: np.ndarray,z: np.ndarray) -> (float,float):
+def tridot(x: np.ndarray, y: np.ndarray,z: np.ndarray) -> Tuple[float,float]:
     """Vector dot product: $v \leftarrow x^T y,\; b \leftarrow x^T z$"""
     n = x.shape[0]
     v1=v2 = nbu.type_ref(x)(0.0)
@@ -91,7 +94,10 @@ def cxpy(dst: np.ndarray, v1: float, src: np.ndarray):
     for i in range(n):
         dst[i] = v1 * src[i]
     return dst
+"""
+Numba Extensions and Utils Vector operations API. A module that holds an assortment of generic vector operations useful for implementing performant numerical routines. with a naming conven
 
+"""
 
 @nbu.jti
 def cxay(dst: np.ndarray, v1: float, src):

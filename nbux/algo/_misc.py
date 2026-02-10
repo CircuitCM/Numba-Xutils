@@ -1,9 +1,11 @@
-import nbux._utils as nbu
-import nbux.op._vector as opv
-import nbux.op._misc as opi
-import numpy as np
 import math as mt
 import random as rand
+
+import numpy as np
+
+import nbux._utils as nbu
+import nbux.op._misc as opi
+import nbux.op.vector as opv
 
 fb_=nbu.fb_
 aligned_buffer = nbu.aligned_buffer
@@ -11,10 +13,17 @@ aligned_buffer = nbu.aligned_buffer
 @nbu.jtc
 def gershgorin_l1_norms(A,t1,t2):
     """
-    Symmetric A, C-order. Two-pass:
-      1) Extract diag and abs(diag)
-      2) Tight nested loop to accumulate column l1 sums
-    Returns: (anorm, diag, rad)
+    Gershgorin L1 norms for a symmetric matrix (C-order).
+
+    Two-pass:
+
+    1. Extract diag and abs(diag).
+    2. Tight nested loop to accumulate column L1 sums.
+
+    :param np.ndarray A: Symmetric matrix (C-order assumed).
+    :param np.ndarray t1: Work buffer (used for column sums; must be zeroed by caller).
+    :param np.ndarray t2: Work buffer (used for diagonal values).
+    :returns: ``(anorm, diag, rad)``.
     """
     n = A.shape[0]
     colsum=t1 #NOTE t1 needs to zeroed, assume user handles it
@@ -44,28 +53,27 @@ def gershgorin_l1_norms(A,t1,t2):
 
 @nbu.jtnc #this cant take a parallel decorator for some reason but that's not a problem I think.
 def lars1_constraintsolve(A, y, out,
-                          At, T1, T2, T3, C, I, Ib,  # required memory.
-                          eps=1e-10, l2cond=-1.):
+                           At, T1, T2, T3, C, I, Ib,  # required memory.
+                           eps=1e-10, l2cond=-1.):
     """
     For more efficient memory usage we can assume n<=m always. and n s/b >= 2.
-    List‑free 1‑add LARS / homotopy algorithm (basis pursuit).
+    List-free 1-add LARS / homotopy algorithm (basis pursuit).
 
     for gradient solution n is # unique samples, m is gradient dimensions.
 
-            Parameters
-    ----------
-    A : ndarray of shape (n, m)
-        Measurement matrix (n <= m).
-    y : ndarray of shape (n,)
-        Observed measurements.
-    out : ndarray of shape (m,)
-        Solution vector.
-    eps : float
-        Stop if the residual norm ||y - A x||_2 < eps, or if lambda < ~1e-14.
-    max_iter : int
-        Maximum lars steps.
-    verbose : bool
-        If True, prints iteration details each step.
+    :param np.ndarray A: Measurement matrix (shape ``(n, m)``, ``n <= m``).
+    :param np.ndarray y: Observed measurements (shape ``(n,)``).
+    :param np.ndarray out: Output solution vector (shape ``(m,)``).
+    :param np.ndarray At: Work buffer.
+    :param np.ndarray T1: Work buffer.
+    :param np.ndarray T2: Work buffer.
+    :param np.ndarray T3: Work buffer.
+    :param np.ndarray C: Work buffer.
+    :param np.ndarray I: Work buffer.
+    :param np.ndarray Ib: Work buffer.
+    :param float eps: Residual tolerance.
+    :param float l2cond: Conditioning parameter (``-1.`` uses a heuristic default).
+    :returns: ``out`` (solution vector).
     """
     
     #At, T1, T2, T3, C, I, Ib = lars1_memspec()
@@ -183,6 +191,7 @@ def lars1_constraintsolve(A, y, out,
 
 @nbu.rgc
 def lars1_memspec(sample_size, sample_dims, type_flt=np.float64, alignb=64, buffer=None):
+    #alignb is used to init arrays along instruction aligned memory blocks, avx512=64.
     cd_ = lambda x, dv: (x + dv - 1)//dv
     flt = nbu.prim_info(type_flt,3)
     
@@ -192,7 +201,7 @@ def lars1_memspec(sample_size, sample_dims, type_flt=np.float64, alignb=64, buff
     t12 = cd_(t9, alignb)
     
     if buffer is None:
-        buffer = aligned_buffer(alignb*(t11 + t12 + t6 + t7 + 2*t8 + cd_(sample_dims, alignb)), 4096)
+        buffer = aligned_buffer(alignb*(t11 + t12 + t6 + t7 + 2*t8 + cd_(sample_dims, alignb)), 4096) #page align
     
     At = fb_(buffer[:t4],type_flt).reshape((sample_size, sample_size))
     buffer = buffer[alignb*t11:]
@@ -210,12 +219,17 @@ def lars1_memspec(sample_size, sample_dims, type_flt=np.float64, alignb=64, buff
     
     return At, T1, T2, T3, C, I, Ib
 
+_I64=nbu.prim_info(np.int64,1)
 
 @nbu.jtic
-def durstenfeld_p_shuffle(a, k=nbu.prim_info(np.int64,1)):
+def durstenfeld_p_shuffle(a, k=_I64):
     """
     Perform up to k swaps of the Durstenfeld shuffle on array 'v'.
     Shuffling should still be unbiased even if a isn't changed back to sorted.
+
+    :param np.ndarray a: Array to shuffle in-place.
+    :param int k: Maximum number of swaps.
+    :returns: None.
     """
     n = a.shape[0]
     num_swaps = min(k, n - 1)
@@ -246,17 +260,17 @@ def latin_hypercube_sample(n_samples, bds):
 
 import itertools
 
+
 def edge_sample(bounds, num):
     """
     Sample points along the edges of a hyperrectangle.
 
-    Parameters:
-        bounds (list of tuple): Each tuple represents (lower, upper) bounds for that dimension.
-        num (int): Number of samples per edge.
+    :param bounds: Bounds per dimension as ``(lower, upper)`` pairs.
+    :param int num: Number of samples per edge.
 
-    Returns:
-        np.ndarray: An array of shape (total_points, dim) where total_points = num * (dim * 2^(dim-1))
-                    for dimensions > 1. For 1-D, returns num points.
+    :returns: An array of shape ``(total_points, dim)`` where
+        ``total_points = num * (dim * 2^(dim-1))`` for ``dim > 1``. For 1-D,
+        returns ``num`` points.
     """
     dim = len(bounds)
     points = []

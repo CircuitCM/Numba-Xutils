@@ -1,28 +1,29 @@
 
 
 def lars1_constraintsolve_dev(A, y,out,
-                          At,T1,T2,T3,C,I,Ib, #required memory.
-                          eps=1e-10, verbose=False,mxitrs=-1,l2cond=-1.):
+                           At,T1,T2,T3,C,I,Ib, #required memory.
+                           eps=1e-10, verbose=False,mxitrs=-1,l2cond=-1.):
     """
     For more efficient memory usage we can assume m<=n always. and m s/b >= 2.
-    List‑free 1‑add LARS / homotopy algorithm (basis pursuit).
+    List-free 1-add LARS / homotopy algorithm (basis pursuit).
     
     for gradient solution m is # unique samples, n is gradient dimensions.
 
-            Parameters
-    ----------
-    A : ndarray of shape (m, n)
-        Measurement matrix (m <= n).
-    y : ndarray of shape (m,)
-        Observed measurements.
-    out : ndarray of shape (n,)
-        Solution vector.
-    eps : float
-        Stop if the residual norm ||y - A x||_2 < eps, or if lambda < ~1e-14.
-    max_iter : int
-        Maximum lars steps.
-    verbose : bool
-        If True, prints iteration details each step.
+    :param np.ndarray A: Measurement matrix (shape ``(m, n)``, ``m <= n``).
+    :param np.ndarray y: Observed measurements (shape ``(m,)``).
+    :param np.ndarray out: Output solution vector (shape ``(n,)``).
+    :param np.ndarray At: Work buffer.
+    :param np.ndarray T1: Work buffer.
+    :param np.ndarray T2: Work buffer.
+    :param np.ndarray T3: Work buffer.
+    :param np.ndarray C: Work buffer.
+    :param np.ndarray I: Work buffer.
+    :param np.ndarray Ib: Work buffer.
+    :param float eps: Residual tolerance.
+    :param bool verbose: Verbosity flag.
+    :param int mxitrs: Maximum iterations (``-1`` uses a heuristic default).
+    :param float l2cond: Conditioning parameter (``-1.`` uses a heuristic default).
+    :returns: ``out`` (solution vector).
     """
       
     

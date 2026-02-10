@@ -4,8 +4,6 @@ import inspect
 import os
 import textwrap
 import warnings
-from collections.abc import Callable, Sequence
-from functools import wraps
 from types import NoneType
 from typing import Any, Callable, Sequence
 
@@ -26,8 +24,8 @@ CSeq=tuple|list
 # implements
 def njit_no_parallelperf_warn(**njit_kwargs):
     """
-    Drop‑in replacement for @nb.njit(parallel=True) that suppresses the
-    ‘parallel=True but no parallel transform’ warning **for this function only**.
+    Drop-in replacement for ``nb.njit(parallel=True)`` that suppresses the
+    "parallel=True but no parallel transform" warning for this function only.
     """
     jt=nb.njit(**njit_kwargs)
     def decorator(func):
@@ -142,7 +140,7 @@ rgc=_rg(**jit_sc) #cache
 # rgn=_rg(**jit_sn) #nogil
 # rgnc=_rg(**jit_scn) #nogil cache
 rgi=_rg(**jit_si) #Inline
-rgic=_rg(**jit_sci) #inline cachce
+rgic=_rg(**jit_sci) #inline cache
 
 rgp=_rg(**jit_p)
 rgp_s=rg_no_parallelperf_warn(rgp)
@@ -178,35 +176,39 @@ def stack_empty_impl(typingctx,size,dtype):
 
 def stack_empty(size,shape,dtype):
     """
-    Forces small stack allocated array. maybe 2x quicker than naive np.array reallocation.
-    
-    Size (int) must be a fixed at compile time.
-    It is not possible to change it during execution.
+    Create a small stack-allocated array (Numba).
 
-    The shape (tuple) size can be as large as the size or smaller.
-    This can be dynamically changed during execution.
+    ``size`` must be fixed at compile time and cannot change during execution.
+    ``shape`` may be dynamic, but must be no larger than ``size``. ``dtype`` is
+    fixed for the compiled implementation.
 
-    The datatype also have to be fixed in this implementation.
+    Notes
+    -----
+    The carray cannot be returned from a function.
 
-    The carray can't be returned from a function.
-    
-    From: https://github.com/numba/numba/issues/5084#issue-550324913
+    Reference: https://github.com/numba/numba/issues/5084#issue-550324913
+
+    :param int size: Number of elements to allocate.
+    :param shape: Target shape.
+    :param dtype: Target dtype.
+    :returns: An empty array/carray with the requested shape and dtype.
     """
     return np.empty(shape,dtype=dtype)
 
 @jtc
 def stack_empty_(size, shape, dtype):
-    """The numba implementation of `stack_empty` """
+    """The Numba implementation of ``stack_empty``."""
     arr_ptr=stack_empty_impl(size,dtype) #type: ignore[bad-argument-count]
     arr=nb.carray(arr_ptr,shape)
     return arr
 
 @ovs#c
 def _stack_empty(size,shape,dtype):
-    """Overloads the implementation, so calling stack_empty in a python area will just return a normal c-array with 
-    shape and dtype.
-    
-    
+    """
+    Overload for ``stack_empty``.
+
+    Calling ``stack_empty`` from Python returns a normal NumPy array with the
+    requested shape and dtype.
     """
     return lambda size, shape, dtype: stack_empty_(size, shape, dtype)
 
@@ -218,19 +220,20 @@ def nb_val_ptr(typingctx, data):
     Use for setting or getting values in some non-local setting within numba, e.g. a call to certain LAPACK or BLAS 
     routines with a value return.
     
-    Example:
-    --------
-        (within a numba njit block)::
-            
-            a = np.int64(5)
-            
-            ap = nb_val_ptr(ap)
-            ap +=1
-            
-            print(nb_pointer_val(ap))
-        
-        Output: 6
-            
+    Example
+    -------
+    Within a Numba ``njit`` block::
+
+        a = np.int64(5)
+
+        ap = nb_val_ptr(ap)
+        ap += 1
+
+        print(nb_pointer_val(ap))
+
+    Output::
+
+        6
     """
     def impl(context, builder, signature, args):
         ptr = cgutils.alloca_once_value(builder,args[0])
@@ -243,7 +246,6 @@ def nb_ptr_val(typingctx, data):
     """Get the value from a pointer/address.
     
     See ``nb_val_ptr``.
-    
     """
     def impl(context, builder, signature, args):
         val = builder.load(args[0])
@@ -261,16 +263,22 @@ def nb_array_ptr(typingctx, arr_typ):
 
 @jtic 
 def buffer_nelems_andp(arr:np.ndarray)->tuple[int,Sequence]:
-    """This is basically a method to get the gaps in a discontinuous array. It's a method to return the contiguous 
-    backing array (along the first memory-leading axis, supports Fortran and C ordering) to be used for iterations 
-    where mutation of the discontinuous portion isn't actually relevant but can improve total loop performance through 
-    vectorized contiguous blocks.
-   
-    - ``ptr`` is the type-correct offset to the start of the underlying buffer.
-    - ``nelems`` Total # of values contained in array's original dimensions with extra fill-in for the discontiguous part of the leading dimension. If only the leading dimension is discontiguous then the last element of the buffer is accessible like ``ptr[nelems-1]``.
-    
-    :return: Total size of the backing array, the datatype pointer offset.
-    """ #noqa: E501
+    """
+    Return the total element count and a pointer-like view for an array buffer.
+
+    This is primarily a helper for iterating over potentially non-contiguous
+    arrays by operating on the contiguous backing buffer (along the leading
+    axis; supports Fortran and C ordering).
+
+    - ``ptr`` is the dtype-correct offset to the start of the underlying buffer.
+    - ``nelems`` is the total number of values in the backing buffer, including
+      any extra fill needed for a discontinuous leading dimension. If only the
+      leading dimension is discontinuous, the final element is accessible as
+      ``ptr[nelems - 1]``.
+
+    :param np.ndarray arr: Input array.
+    :returns: ``(nelems, ptr)`` where ``ptr`` can be indexed like a 1D sequence.
+    """
     #We will tell typing that this is a Sequence, because a datatype pointer will have a __getitem__.
     ptr:Sequence=nb_array_ptr(arr) #type: ignore[bad-assignment]
     size = arr.size
@@ -382,20 +390,19 @@ Op=Callable|NoneType|CSeq
     
 def op_call(call_op:Op, defr=True):
     """
-    An **Evaluator** (caller) for **Call Operator**'s
+    An evaluator (caller) for call operators.
     
     Specifically targets constraints in numba first class functions, and also works in no-python mode.
     
-    It has the form
-    ::
+    It has the form::
+
         op = (callable, *args)
         #or maybe:
         op = (callable, arg1, arg2, arg3)
     
     Why is this useful? Numba implements first class functions. Depending on the definition, it supports
-    full LLVM optimization and cached signatures, e.g.
-    ::
-    
+    full LLVM optimization and cached signatures, e.g.::
+
         @nbux.jt
         def ctest(arg1, arg2): 
             return arg1-arg2
@@ -412,13 +419,24 @@ def op_call(call_op:Op, defr=True):
     Or it can be called externally, in which case ``ctest`` and ``fclass_test`` will be compiled separately
     and linked by function pointers (in this example it will produce a much slower subtract add operation).
     ::
+
         fclass_test((ctest,a,b),c) 
     
-    We get the same result but now ctest will also not have a new compilation overhead 
+    We get the same result but now ctest will not have a compilation overhead if called again from 
+    the python interpreter.
     
-    :param call_op: 
-    :param defr: Default return value of call_op is None.
-    :return: 
+    ``op_call`` and it's offspring ``op_args`` simplify this process::
+
+        @nbux.jt       
+        def fclass_test(func_op, arg3):
+            return op_call(func_op) + arg3
+    
+    The purpose of ``op_call`` is to provide additional flexibility by allowing ``call_op`` to be None, a function, 
+    or a ``Sequence[Callable, *Any]``. See ``op_call_args`` and ``op_args`` for more examples.
+    
+    :param call_op: ``None``, a callable, or an operator sequence.
+    :param defr: Default return value when ``call_op`` is ``None`` (or invalid).
+    :returns: The evaluated result, or ``defr``.
     """
     
     if isinstance(call_op, Callable):
@@ -431,16 +449,6 @@ def op_call(call_op:Op, defr=True):
     if defr is not None:
         return defr
     return call_op 
-
-
-def ctest(arg1, arg2): 
-    return arg1-arg2
-        
-def fclass_test(func_op, arg3):
-    return func_op[0](*func_op[1:]) + arg3
-
-def static_compile(a,b,c):
-    return fclass_test((ctest,a,b),c)
     
 
 @ovsic(op_call)
@@ -460,9 +468,11 @@ def op_call_args(call_op:Op, args: CSeq|Any=(), defr=None):
     A callable with arguments supplied either directly or via an operator tuple.
     
     ``op_call_args`` accepts either:
-     - a callable ``call_op``, or
-     - a sequence whose first element is a callable and whose remaining elements are pre-bound arguments,
-    
+
+    - a callable ``call_op``, or
+    - a sequence whose first element is a callable and whose remaining elements
+      are pre-bound arguments,
+      
     and applies ``args`` to it. If ``args`` is a tuple or list it is expanded;
     otherwise it is treated as a single argument.
     
@@ -505,7 +515,7 @@ def op_call_args(call_op:Op, args: CSeq|Any=(), defr=None):
 
 @ovsic(op_call_args)
 def _op_call_args(call_op:Op, args: CSeq|Any=(), defr=None):
-    """"``op_call_args`` overload for numba implementation."""
+    """``op_call_args`` overload for the Numba implementation."""
     #ruff: disable[F821]
     if call_op is _N:
         if defr is _N or defr is None: return call_op
@@ -570,7 +580,7 @@ def op_args(call_op:Op, args: CSeq|Any=(), defr=None):
 
 @ovsic(op_args)
 def _op_args(call_op:Op, args: CSeq|Any=(), defr=None):
-    """"``op_args`` overload for numba implementation."""
+    """``op_args`` overload for the Numba implementation."""
     #ruff: disable[F821]
     if call_op is _N:
         if defr is _N or defr is None: return call_op
@@ -590,26 +600,19 @@ def _op_args(call_op:Op, args: CSeq|Any=(), defr=None):
 
 @rgc
 def aligned_buffer(n_bytes: int, align: int = 64) -> np.ndarray:
-    """Return an aligned ``uint8`` view of length ``n_bytes``.
+    """
+    Return an aligned ``uint8`` view of length ``n_bytes``.
 
-    A slightly oversized buffer is allocated and then *manually aligned* by
+    A slightly oversized buffer is allocated and then manually aligned by
     slicing so that ``result.ctypes.data % align == 0``. The extra capacity is
     not exposed by the returned view.
-    
-    This function is also in `numpy_buffermap` but adding it here so it's not
-    a needed dependency.
 
-    Parameters
-    ----------
-    n_bytes : int
-        Logical size of the returned view (in bytes).
-    align : int
-        Desired byte alignment (power-of-two is assumed).
-        
-    Returns
-    -------
-    offset_buffer : np.ndarray
-        A buffer view that is rounded to a base ``align`` pointer offset.
+    This function is also in ``numpy_buffermap`` but is included here so it is
+    not a required dependency.
+
+    :param int n_bytes: Logical size of the returned view (in bytes).
+    :param int align: Desired byte alignment (power-of-two is assumed).
+    :returns: A buffer view that is aligned to an ``align``-byte boundary.
     """
     raw = np.empty(n_bytes + align, dtype=np.uint8)
     offset = (-raw.ctypes.data) & (align - 1)
@@ -637,6 +640,10 @@ def prim_info(dt, field):
       
     This only supports np.dtype object instances, or anything with the kind field. 
     So get the type first with ``type_ref``.
+
+    :param dt: A NumPy dtype (or dtype-like).
+    :param int field: Field selector (see list above).
+    :returns: The requested field value, or ``None``.
     """
     if not hasattr(dt, 'kind'):
         dt = np.dtype(dt)
@@ -670,7 +677,7 @@ def _prim_info(typ,res):
     
     :param typ: type received from a function like type_ref in a nopython block.
     :param res: 0 min, 1 max, 2 epsilon/precision.
-    :return: 
+    :returns: The requested field value.
     """
     if isinstance(res,(nb.types.Literal,int)):
         ref=res if isinstance(res,int) else res.literal_value #`type(res) is` unliked by pyrefly
@@ -694,7 +701,7 @@ def swap(x,i,j):
     :param np.ndarray x: 1D array to perform element swap on. 
     :param int i: First element index.  
     :param int j: Second element index.
-    :return: 
+    :returns: None.
     """
     t=x[i]
     x[i]=x[j]
@@ -702,14 +709,15 @@ def swap(x,i,j):
     
 
 def force_const(val): 
-    """Within a numba block this forces referenced variables to become literal, mainly 
+    """
+    Within a numba block this forces referenced variables to become literal, mainly 
     kwargs and args from the function header. Numba procedures compiled with a 
     ``force_const`` will still cache, but it seems that it will not save signatures with
     different values meaning it will recompile from the python scope each time the value
     is changed. This is true even before the interpreter restarts.
     
-    Therefore ``force_const`` may not have a meaningful use case, because non-cached numba functions will
-    
+    Therefore ``force_const`` may not have a meaningful use case, because non-cached numba functions called from a 
+    numba scope with constant value arguments will already compile with branch reductions and hot paths.
     """
     return val
 
@@ -724,13 +732,13 @@ def _force_const(val):
 
 
 def run_py(func,*args,**kwargs):
-    """Numba's base python definition is inside the ``py_func`` field, if it exists we try to call it here.
+    """
+    Numba's base python definition is inside the ``py_func`` field, if it exists we try to call it here.
     
     :param Callable func: callable.
     :param Sequence args: Variable unnamed ordered args.
     :param dict kwargs: Variable named unordered kwargs.
-    :return: 
-    
+    :returns: The function result.
     """
     if hasattr(func,'py_func'):
         func:Callable = func.py_func
@@ -739,18 +747,19 @@ def run_py(func,*args,**kwargs):
 
 
 def run_numba(func,*args,verbose=False,**kwargs):
-    """First attempts to call the numba dispatcher in fully compiled (no-python) mode.
+    """
+    First attempts to call the numba dispatcher in fully compiled (no-python) mode.
     
     If that fails it tries to run as a python function. Even if the function signature isn't
     supported in no-python mode, it can still provide performance benefits as the numba subroutines
     will be compiled separately.
     
     :param Callable func: callable.
-    :param bool verbose: Announce if the no-python dispatch failed for the function before running in python mode.
     :param Sequence args: Variable unnamed ordered args.
+    :param bool verbose: Announce if the no-python dispatch failed for the
+        function before running in python mode.
     :param dict kwargs: Variable named unordered kwargs.
-    :return: 
-    
+    :returns: The function result.
     """
     try:
         return func(*args, **kwargs)
@@ -766,9 +775,9 @@ def run_numba(func,*args,verbose=False,**kwargs):
 def _ov_pl_factory(sync_impl, pl_impl, ov_def):
     """
     The method I use to be completely sure that there are two separate implementations for parallel bool.
-    Register a numba‑overload that routes to *sync_impl* or *pl_impl* according
-    to the value (or Literal value) of the boolean *parallel* keyword that must
-    be present in *ov_def*’s signature.
+    Register a numba overload that routes to ``sync_impl`` or ``pl_impl``
+    according to the value (or literal value) of the boolean ``parallel``
+    keyword that must be present in ``ov_def``'s signature.
     """
     sig        = inspect.signature(ov_def)
     params     = list(sig.parameters.values())
@@ -818,11 +827,24 @@ def gener_ov({full_params}):
 
 def ir_force_separate_pl(sync_impl, pl_impl):
     """
-    See `nbux._rng`
+    This is a *decorator factory* that generates an overloads to **force** compile in
+    fully synchronous or parallel implementations based on the ``pl`` or ``parallel`` argument at
+    compile time.
     
-    :param sync_impl: 
-    :param pl_impl: 
-    :return: 
+    In the current version numba still compiles in both the parallel and synchronous blocks even if
+    the conditional branch that routes to either implementation is a constant/static value. Meaning that 
+    there will be the compilation bloat and decision scope that LLVM won't be able to optimize away, this is
+    heavier on the system than a simple and lightweight single threaded complition would be.
+    
+    See :module:`nbux._rng` for use examples.
+    
+    This is a paragraph that contains `a link`_.
+    
+    .. _a link: https://domain.invalid/
+    
+    :param sync_impl: The (only) synchronous implementation of the numba function.
+    :param pl_impl: The parallel implementation of the numba function.
+    :return: A decorator that constructs an overloads function around the python-only version.
     """
     return lambda ov_def: _ov_pl_factory(sync_impl,pl_impl,ov_def)
  

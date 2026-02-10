@@ -3,7 +3,7 @@ line-length = 120
 
 
 [lint]
-select = ["I","E4","E5", "E7", "E9", "F","B","Q"]
+select = ["I","E4","E5", "E7", "E9", "F","B","Q","PYI"]
 ignore = ["E701","Q000"]
     
     
