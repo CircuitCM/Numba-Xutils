@@ -4,8 +4,8 @@ from collections.abc import Callable
 import numpy as np
 
 import nbux._utils as nbu
-
 from ..op._misc import quadratic_newton_coef
+
 
 #For now I'm implementing the safe/bracketing methods with just this stopping criteria: when our point becomes "stationary enough". This is because for a complicated function or high order poly, the point can significantly impact the precision of the function output. However because all of these methods utilize some form of bisection fallback, we at least have a guarantee it will reach a stationary point. Depending on the optimizer there is some risk of premature stopping, but that should be extremely rare. That also means er_tol ~ root_point*(float64 epsilon). May implement a more refined stopping api in the future.
 
@@ -83,6 +83,10 @@ def _bracketed_newton(fd_op, lo, hi, er_tol=1e-14, max_iters=20,sign=1):
       
     :param fd_op: Can be a function or a function operator (tuple). It recieves a single scalar value for the point estimate.
     :param sign: =1 we expect to have f(lo)<f(root)<f(hi). if -1 we expect f(lo)>f(root)>f(hi). If this expectation is unknown, it controls the bracketing bias eg if f is all positives then the bracket will halve from left to right until reaching hi, if negatives vice versa. Note: both sides wrong could make convergence messy. However it can still work with a high likelihood if we only know the sign of either lo or hi, and that our target root has a root on the opposite sign side.
+    :param lo: Lower bound.
+    :param hi: Upper bound.
+    :param er_tol: Step-size tolerance.
+    :param max_iters: Iteration limit.
       
     Notes: Convergence is only guaranteed when there is a single root within the bracket.
 
@@ -124,6 +128,10 @@ def _bracketed_secant(f_op, lo, hi, er_tol=1e-14, max_iters=20,sign=1):
 
     :param f_op: Can be a function or a function operator (tuple). It receives a single scalar value for the point estimate.
     :param sign: =1 we expect to have f(lo)<f(root)<f(hi). if -1 we expect f(lo)>f(root)>f(hi). If this expectation is unknown, it controls the bracketing bias eg if f is all positives and sign=1, then the bracket will halve from right to left until reaching hi, if negatives and sign=1 then left to right. Note: If both sides are wrong then convergence is impossible. However, it still converges with a high likelihood if we only know the sign of either lo or hi, and that our target root has a root on the opposite sign side.
+    :param lo: Lower bound.
+    :param hi: Upper bound.
+    :param er_tol: Step-size tolerance.
+    :param max_iters: Iteration limit.
   
     Other Notes: Convergence is only guaranteed when there is a single root within the bracket. In a two root scenario because of how bracketing is handled, this method will always converge to the root with sign(slope)=sign (if it converges at all). Sign=-1: left root, =1: right root. Brent's method doesn't have this issue but is significantly slower. See alternative methods that can deal with multiple roots. 
 
@@ -165,7 +173,7 @@ def signedroot_secant(f_op:Callable, lo:float, hi:float,
                       br_tol=None,er_tol=None,rel_err=True,dtyp=None
                       )->tuple[float,float,float,int]:
     """
-    A bracketed secant method that achieves (empirically) faster convergence by knowing the sign of the function to the left and right of the root.
+    A bracketed secant method that achieves (emperically) faster convergence by knowing the sign of the function to the left and right of the root.
     It also allows us to select if the slope of our root is positive or negative when there are multiple roots. Which corresponds to finding local maxima or minima of the integrated line.
   
     The secant method uses the two most recent points with fall back to the third most recent point (if enabled).
@@ -305,6 +313,14 @@ def posroot_nofallb_secant(f_op, lo, hi,br_rate=.5, max_iters=15,br_tol=None,er_
     So it's also fine to treat it as a wrapper that changes all default args, and the function should get the same
     compile time benefits.
 
+    :param f_op: Function or operator tuple (see ``nbu.op_call_args``).
+    :param lo: Starting lower bound.
+    :param hi: Starting upper bound.
+    :param br_rate: (0,1). Bracket increment.
+    :param max_iters: Iteration limit.
+    :param br_tol: Bracket fallback tolerance.
+    :param er_tol: Step-size tolerance.
+    :param dtyp: Scalar dtype for computations.
     :returns: See ``signedroot_secant``.
     """
     return signedroot_secant(f_op, lo, hi, br_rate, max_iters, 1, True, False, br_tol, er_tol, True, dtyp)
@@ -326,6 +342,16 @@ def signedroot_quadinterp(f_op:Callable, lo:float, hi:float, br_rate=.5, max_ite
     just an expectation depending on how compatible the error order is. With high root curvature it can 
     even end up with only 1/2 the number of steps.
     
+    :param f_op: Function or operator tuple (see ``nbu.op_call_args``).
+    :param lo: Starting lower bound.
+    :param hi: Starting upper bound.
+    :param br_rate: (0,1). Bracket increment.
+    :param max_iters: Iteration limit.
+    :param sign: Root slope sign selector (see ``signedroot_secant``).
+    :param eager: Eagerness flag (see ``signedroot_secant``).
+    :param er_tol: Step-size tolerance.
+    :param br_tol: Bracket fallback tolerance.
+    :param dtyp: Scalar dtype for computations.
     :returns: See ``signedroot_secant``.
     """
     if dtyp is None: dtyp=nbu.type_ref(lo) # which will default to f64 unless dtyp is specified
@@ -442,8 +468,16 @@ def signedroot_newton(f_op:Callable, g_op:Callable, lo:float, hi:float, br_rate=
 
     :param f_op: function or operator tuple; called via nbu.op_call_args(f_op, x) -> f(x).
     :param g_op: gradient operator; nbu.op_call_args(g_op, x) -> f'(x).
+    :param lo: Starting lower bound.
+    :param hi: Starting upper bound.
     :param br_rate: (0,1). Bracket increment (0.5 = classic bisection).
+    :param max_iters: Iteration limit.
     :param sign: =1 means we expect f(lo)<f(root)<f(hi); =-1 means f(lo)>f(root)>f(hi).
+    :param eager: Eagerness flag.
+    :param er_tol: Step-size tolerance.
+    :param br_tol: Bracket fallback tolerance.
+    :param rel_err: Relative-error mode for tolerance comparisons.
+    :param dtyp: Scalar dtype for computations.
     :returns: ``(root, lo, hi, status)`` (see return statement for status codes).
     """
     if dtyp is None: dtyp=nbu.type_ref(lo) # which will default to f64 unless dtyp is specified
@@ -528,8 +562,16 @@ def signseeking_halley(f_op, g_op,c_op, lo, hi, br_rate=.5, max_iters=12, sign=1
     :param f_op: function or operator tuple; called via nbu.op_call_args(f_op, x) -> f(x).
     :param g_op: gradient operator; nbu.op_call_args(g_op, x) -> f'(x).
     :param c_op: curvature operator; nbu.op_call_args(c_op, x) -> f''(x).
+    :param lo: Starting lower bound.
+    :param hi: Starting upper bound.
     :param br_rate: (0,1). Bracket increment (0.5 = classic bisection).
+    :param max_iters: Iteration limit.
     :param sign: =1 means we expect f(lo)<f(root)<f(hi); =-1 means f(lo)>f(root)>f(hi).
+    :param eager: Eagerness flag.
+    :param er_tol: Step-size tolerance.
+    :param br_tol: Bracket fallback tolerance.
+    :param rel_err: Relative-error mode for tolerance comparisons.
+    :param dtyp: Scalar dtype for computations.
     :returns: ``(root, lo, hi, status)`` (see return statement for status codes).
     """
     if dtyp is None: dtyp=nbu.type_ref(lo) # which will default to f64 unless dtyp is specified

@@ -26,6 +26,9 @@ def njit_no_parallelperf_warn(**njit_kwargs):
     """
     Drop-in replacement for ``nb.njit(parallel=True)`` that suppresses the
     "parallel=True but no parallel transform" warning for this function only.
+
+    :param njit_kwargs: Keyword arguments forwarded to ``numba.njit``.
+    :returns: A decorator.
     """
     jt=nb.njit(**njit_kwargs)
     def decorator(func):
@@ -165,7 +168,13 @@ def compiletime_parallelswitch():
 
 @intrinsic
 def stack_empty_impl(typingctx,size,dtype):
-    """Low level llvm call for stack_empty."""
+    """
+    Low level llvm call for stack_empty.
+
+    :param size: Number of elements to allocate.
+    :param dtype: Target dtype.
+    :returns: A pointer to the stack-allocated buffer.
+    """
     def impl(context, builder, signature, args):
         ty=context.get_value_type(dtype.dtype)
         ptr = cgutils.alloca_once(builder, ty,size=args[0])
@@ -197,7 +206,14 @@ def stack_empty(size,shape,dtype):
 
 @jtc
 def stack_empty_(size, shape, dtype):
-    """The Numba implementation of ``stack_empty``."""
+    """
+    The Numba implementation of ``stack_empty``.
+
+    :param size: Number of elements to allocate.
+    :param shape: Target shape.
+    :param dtype: Target dtype.
+    :returns: A stack-allocated carray with the requested shape and dtype.
+    """
     arr_ptr=stack_empty_impl(size,dtype) #type: ignore[bad-argument-count]
     arr=nb.carray(arr_ptr,shape)
     return arr
@@ -209,6 +225,11 @@ def _stack_empty(size,shape,dtype):
 
     Calling ``stack_empty`` from Python returns a normal NumPy array with the
     requested shape and dtype.
+
+    :param size: Number of elements to allocate.
+    :param shape: Target shape.
+    :param dtype: Target dtype.
+    :returns: An overload implementation for ``stack_empty``.
     """
     return lambda size, shape, dtype: stack_empty_(size, shape, dtype)
 
@@ -219,10 +240,15 @@ def nb_val_ptr(typingctx, data):
     
     Use for setting or getting values in some non-local setting within numba, e.g. a call to certain LAPACK or BLAS 
     routines with a value return.
+
+    :param data: Primitive value to take the address of.
+    :returns: A pointer to ``data``.
     
     Example
     -------
-    Within a Numba ``njit`` block::
+    Within a Numba ``njit`` block:
+
+    .. code-block:: python
 
         a = np.int64(5)
 
@@ -231,7 +257,9 @@ def nb_val_ptr(typingctx, data):
 
         print(nb_pointer_val(ap))
 
-    Output::
+    Output:
+
+    .. code-block:: text
 
         6
     """
@@ -246,6 +274,9 @@ def nb_ptr_val(typingctx, data):
     """Get the value from a pointer/address.
     
     See ``nb_val_ptr``.
+
+    :param data: Pointer/address to load.
+    :returns: The loaded value.
     """
     def impl(context, builder, signature, args):
         val = builder.load(args[0])
@@ -255,7 +286,12 @@ def nb_ptr_val(typingctx, data):
 
 @intrinsic
 def nb_array_ptr(typingctx, arr_typ):
-    """Get the base pointer offset of an extant array."""
+    """
+    Get the base pointer offset of an extant array.
+
+    :param arr_typ: Array type.
+    :returns: A pointer to the base of the underlying array buffer.
+    """
     elptr = types.CPointer(arr_typ.dtype)
     def codegen(ctx, builder, sig, args):
         return ctx.make_helper(builder, sig.args[0], args[0]).data
@@ -313,6 +349,11 @@ def display_round(f,m=1,s=10):
     A method to round floats so that when printed from numba's stdout it doesn't show roundoff tail error.
     
     Note: this still doesn't work, looking for something that does.
+
+    :param f: Input value.
+    :param m: Base-10 order offset.
+    :param s: Significant digits.
+    :returns: Rounded value.
     """
     # so that we don't get roundoff tails and mess up the string, we  instead float -> int -> float it.
     # mv and s are integers that represent base 10 factors, mv is b10 order offset and s is significant digits, s=0 no digits, mv=1 no offset.
@@ -355,13 +396,21 @@ def type_ref(arg):
     Works in python and numba blocks.
     
     Useful for gathering type specific information at signature compile time. E.g. dtype epsilon, or min-max values.
+
+    :param arg: Value or array.
+    :returns: A dtype/type reference for ``arg``.
     """
     if isinstance(arg,np.ndarray): return arg.dtype.type
     else: return type(arg)
 
 @ovsic(type_ref)
 def _type_ref(arg):
-    """Numba overloads for type_ref."""
+    """
+    Numba overloads for type_ref.
+
+    :param arg: Value or array.
+    :returns: A dtype/type reference for ``arg``.
+    """
     #now supports primitive types, literals and array memory type.
     if isinstance(arg,types.Literal): #we should never even get this result
         typ=arg._literal_type_cache
@@ -382,7 +431,13 @@ def if_val_cast(typ,val):
 
 @ovsic(if_val_cast)
 def _if_val_cast(typ,val):
-    """Overloads impl."""
+    """
+    Overloads impl.
+
+    :param typ: Target type.
+    :param val: Input value.
+    :returns: An overload implementation for ``if_val_cast``.
+    """
     if isinstance(val,types.IterableType):return lambda typ,val:val
     else:return lambda typ,val:typ(val)
 
@@ -394,14 +449,18 @@ def op_call(call_op:Op, defr=True):
     
     Specifically targets constraints in numba first class functions, and also works in no-python mode.
     
-    It has the form::
+    It has the form:
+
+    .. code-block:: python
 
         op = (callable, *args)
         #or maybe:
         op = (callable, arg1, arg2, arg3)
     
     Why is this useful? Numba implements first class functions. Depending on the definition, it supports
-    full LLVM optimization and cached signatures, e.g.::
+    full LLVM optimization and cached signatures, e.g.:
+
+    .. code-block:: python
 
         @nbux.jt
         def ctest(arg1, arg2): 
@@ -418,14 +477,17 @@ def op_call(call_op:Op, defr=True):
             
     Or it can be called externally, in which case ``ctest`` and ``fclass_test`` will be compiled separately
     and linked by function pointers (in this example it will produce a much slower subtract add operation).
-    ::
+    
+    .. code-block:: python
 
         fclass_test((ctest,a,b),c) 
     
     We get the same result but now ctest will not have a compilation overhead if called again from 
     the python interpreter.
     
-    ``op_call`` and it's offspring ``op_args`` simplify this process::
+    ``op_call`` and it's offspring ``op_args`` simplify this process:
+
+    .. code-block:: python
 
         @nbux.jt       
         def fclass_test(func_op, arg3):
@@ -477,7 +539,9 @@ def op_call_args(call_op:Op, args: CSeq|Any=(), defr=None):
     otherwise it is treated as a single argument.
     
     Example:
-    ::
+
+    .. code-block:: python
+
         @nbux.jt
         def callop(a, b, c):
             return a + b + c
@@ -497,6 +561,7 @@ def op_call_args(call_op:Op, args: CSeq|Any=(), defr=None):
     
     :param call_op: Callable or tuple/list whose first element is callable, remaining elements are fixed arguments.
     :param args: Arguments to apply, either as a tuple/list or a single value.
+    :param defr: Default return value when ``call_op`` is ``None``.
     :returns: Function output.
     """
 
@@ -515,7 +580,14 @@ def op_call_args(call_op:Op, args: CSeq|Any=(), defr=None):
 
 @ovsic(op_call_args)
 def _op_call_args(call_op:Op, args: CSeq|Any=(), defr=None):
-    """``op_call_args`` overload for the Numba implementation."""
+    """
+    ``op_call_args`` overload for the Numba implementation.
+
+    :param call_op: Callable or operator sequence.
+    :param args: Arguments to apply.
+    :param defr: Default return value when ``call_op`` is ``None``.
+    :returns: An overload implementation for ``op_call_args``.
+    """
     #ruff: disable[F821]
     if call_op is _N:
         if defr is _N or defr is None: return call_op
@@ -541,8 +613,10 @@ def op_args(call_op:Op, args: CSeq|Any=(), defr=None):
     a variable portion of arguments when used at different entry points. While any arguments in ``call_op[1:]``
     e.g. array work memory addresses or config values, can be treated like generic or unobserved constants.
     
-    Example: 
-    ::
+    Example:
+
+    .. code-block:: python
+
         @nbux.jt
         def callop(a,b,c,d,*args):
             pass
@@ -562,6 +636,7 @@ def op_args(call_op:Op, args: CSeq|Any=(), defr=None):
 
     :param call_op: The callable, or callable operator and attached parameters.
     :param args: The other implementation arguments that are treated as external or problem-specific inputs.
+    :param defr: Default return value when ``call_op`` is ``None``.
     :returns: Function output.
     """
     
@@ -580,7 +655,14 @@ def op_args(call_op:Op, args: CSeq|Any=(), defr=None):
 
 @ovsic(op_args)
 def _op_args(call_op:Op, args: CSeq|Any=(), defr=None):
-    """``op_args`` overload for the Numba implementation."""
+    """
+    ``op_args`` overload for the Numba implementation.
+
+    :param call_op: Callable or operator sequence.
+    :param args: Arguments to apply.
+    :param defr: Default return value when ``call_op`` is ``None``.
+    :returns: An overload implementation for ``op_args``.
+    """
     #ruff: disable[F821]
     if call_op is _N:
         if defr is _N or defr is None: return call_op
@@ -688,7 +770,14 @@ def _prim_info(typ,res):
 
 @jtic
 def placerange(r,start=0,step=1):
-    """Like numpy arange but for existing arrays. Start and step may be float values."""
+    """
+    Like numpy arange but for existing arrays. Start and step may be float values.
+
+    :param r: Output array.
+    :param start: Starting value.
+    :param step: Step value.
+    :returns: None.
+    """
     for i in range(r.shape[0]):
         r[i] = start + i*step
 
@@ -718,6 +807,9 @@ def force_const(val):
     
     Therefore ``force_const`` may not have a meaningful use case, because non-cached numba functions called from a 
     numba scope with constant value arguments will already compile with branch reductions and hot paths.
+
+    :param val: Value to treat as a literal/compile-time constant.
+    :returns: ``val``.
     """
     return val
 
@@ -778,6 +870,11 @@ def _ov_pl_factory(sync_impl, pl_impl, ov_def):
     Register a numba overload that routes to ``sync_impl`` or ``pl_impl``
     according to the value (or literal value) of the boolean ``parallel``
     keyword that must be present in ``ov_def``'s signature.
+
+    :param sync_impl: Synchronous implementation.
+    :param pl_impl: Parallel implementation.
+    :param ov_def: Python-only function to overload (must define ``parallel`` or ``pl`` keyword).
+    :returns: The constructed overload function.
     """
     sig        = inspect.signature(ov_def)
     params     = list(sig.parameters.values())

@@ -87,6 +87,14 @@ def cubic_lagrange_coef(
     From local tests this is both slower and less accurate than cubic Newton
     differences.
 
+    :param x0: First x sample.
+    :param x1: Second x sample.
+    :param x2: Third x sample.
+    :param x3: Fourth x sample.
+    :param f0: ``f(x0)``.
+    :param f1: ``f(x1)``.
+    :param f2: ``f(x2)``.
+    :param f3: ``f(x3)``.
     :returns: ``(a, b, c, d)`` coefficients for ``a*x**3 + b*x**2 + c*x + d``.
     """
     # barycentric weights w_i = 1 / Π_{j≠i} (x_i - x_j)
