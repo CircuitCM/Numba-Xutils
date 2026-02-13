@@ -95,7 +95,34 @@ def cxpy(dst: np.ndarray, v1: float, src: np.ndarray):
         dst[i] = v1 * src[i]
     return dst
 """
-Numba Extensions and Utils Vector operations API. A module that holds an assortment of generic vector operations useful for implementing performant numerical routines. with a naming conven
+Numba Extensions and Utils Vector operations API. A module that holds an assortment of generic vector operations useful for implementing performant numerical routines. It uses a naming convention that extends the axpy BLAS operator to other kernels.
+
+Array vectors: x, y, z. To qualify for this naming convention:
+- x : Is always the write array, the first argument of the kernel, and called src (might change this).
+- y : This will always be the optional second array.
+- z : The optional third array.
+
+Values: s1, s2, s3. In latex: $s_1, s_2, s_3$
+
+Then we have char names:
+- a : Add.
+- p : Product.
+- c : Copy.
+- n : Negative copy.
+- d : Division. (not implemented for vector - vector at present, all kernels support (1/v) products).
+- w : Power. (Not implemented yet, for whole scalars this can be replicated with v-v multi-products which are more performant as well).
+
+There's no subtract as it will likely compile down to the same thing as a -1. scalar product.
+
+
+More info on triads below.
+
+
+Three vector arrays are the most complex kernels we implement here, this allows us to build triads and may
+provide a performance boost anywhere from 10-100% when applied correctly.
+
+Triad performance:
+
 
 """
 

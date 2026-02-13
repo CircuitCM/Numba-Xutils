@@ -1,4 +1,0 @@
-
-#conda env seems broken for pyrefly rn
-python-interpreter-path = "C:/Users/charl/mambaforge/envs/intelopt/python.exe"
-#conda-environment = "intelopt"

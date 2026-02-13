@@ -1,3 +1,5 @@
+#ruff: noqa
+
 from llvmlite import binding
 from numba.core import typing
 from numba.core.extending import overload

@@ -1,8 +1,8 @@
 import numba as nb
 import numpy as np
-from . import vector as opv
 
 from nbux import _utils as nbu
+from . import vector as opv
 
 BLAS_PACK=False
 
@@ -209,7 +209,7 @@ else:
     @nbu.jtc
     def mmul_cself(a,out,a_mult=1.,rem_mult=0.,sym=False,outer=True):
         """
-        Matrix multiply self (C-ordered).
+        Matrix multiply self (C-ordered). This like BLAS syrk with a more friendly interface.
 
         If ``outer`` is True and ``a`` has shape ``(m, n)``, then ``out`` has
         shape ``(m, m)``. If ``outer`` is False (inner), then ``out`` has shape
