@@ -1,7 +1,6 @@
 from __future__ import annotations
 
-import vector
-
+from . import vector
 from ._misc import (
     cholesky_fsolve_inplace,
     cubic_lagrange_coef,
