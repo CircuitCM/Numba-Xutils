@@ -1,7 +1,20 @@
+from __future__ import annotations
 
-import nbux._rng as rng
-import nbux._sort as sort
-import nbux._utils as utils
-from nbux.op import vector as vops
+import algo
+import op
+import rng
 
-__all__ = [ 'sort','utils','vops']
+import utils
+
+from ._sort import arg_insert_sort, arg_merge_sort, insert_sort, merge_sort
+
+__all__ = [
+    "algo",
+    "op",
+    "rng",
+    "utils",
+    "arg_insert_sort",
+    "arg_merge_sort",
+    "insert_sort",
+    "merge_sort",
+]

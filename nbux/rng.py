@@ -1,6 +1,7 @@
 
 # pyrefly: ignore-errors
 #Array pointers are acting up
+from __future__ import annotations
 
 import math as mt
 import random as rand
@@ -12,7 +13,7 @@ except ModuleNotFoundError:
 import numba as nb
 import numpy as np
 
-import nbux._utils as nbu
+import nbux.utils as nbu
 
 
 @nbu.jt
@@ -37,6 +38,7 @@ def durstenfeld_p_shuffle(a, k=None):
 ##Legacy
 @nbu.jtic
 def jt_uniform_rng(a,b):
+    """Return a single uniform random value between ``a`` and ``b``."""
     return rand.uniform(a,b)
 
 ## 
@@ -48,6 +50,7 @@ def _ss(f):
 
 
 def set_seed(seed):
+    """Set both ``random`` and ``numpy.random`` seeds when ``seed`` is not ``None``."""
     if seed is not None:
         _ss(seed)
         rand.seed(seed)
@@ -60,6 +63,14 @@ scaled_rademacher_rng=nbu.rgic(lambda l=-1.,u=1. : l if rand.random()<.5 else u)
 
 @nbu.rgic
 def normal_rng_protect(mu=0.,sig=1.,pr=.001):
+    """
+    Draw a Gaussian sample and clamp values too close to zero.
+
+    :param mu: Mean of the Gaussian draw.
+    :param sig: Standard deviation of the Gaussian draw.
+    :param pr: Protection ratio relative to ``sig`` used for the zero clamp.
+    :returns: Gaussian sample with zero-protection applied.
+    """
     n=rand.gauss(mu,sig)
     sr=sig*pr
     if abs(n)<sr:
@@ -79,28 +90,37 @@ def normal_rng_protect(mu=0.,sig=1.,pr=.001):
 
 ### Gauss
 @nbu.jtic
-def place_gauss_s(a,mu=0.,sig=0.):
+def _place_gauss_s(a, mu=0., sig=0.):
     itrs,ptr=nbu.buffer_nelems_andp(a)
     for i in range(itrs):ptr[i]=rand.gauss(mu,sig)
 
 @nbu.jtpc
-def place_gauss_pl(a,mu=0.,sig=0.,):
+def _place_gauss_pl(a, mu=0., sig=0., ):
     itrs, ptr = nbu.buffer_nelems_andp(a)
     #ld = nb.set_parallel_chunksize(mt.ceil(v.size / nb.get_num_threads()))
     for i in nb.prange(itrs): ptr[i]=rand.gauss(mu,sig)
     #nb.set_parallel_chunksize(ld)
     
 #Only method I found to be certain the rng implements are compiling separately.
-@nbu.ir_force_separate_pl(place_gauss_s,place_gauss_pl)
+@nbu.ir_force_separate_pl(_place_gauss_s, _place_gauss_pl)
 def place_gauss(a,mu=0.,sigma=1.,parallel=False):
-    if parallel: place_gauss_pl(a,mu,sigma)
-    else:place_gauss_s(a, mu, sigma)
+    """
+    Fill ``a`` in-place with Gaussian samples.
+
+    :param a: Target array buffer.
+    :param mu: Mean of the Gaussian distribution.
+    :param sigma: Standard deviation of the Gaussian distribution.
+    :param parallel: Use parallel implementation when true.
+    :returns: None.
+    """
+    if parallel: _place_gauss_pl(a, mu, sigma)
+    else:_place_gauss_s(a, mu, sigma)
 
 #EXAMPLES
 @nbu.jtc #doesn't work, both the parallel and sync functions still compiled in. Seen in byte code.
 def _place_gauss(v,mu=0.,sigma=1.,parallel=False):
-    if nbu.force_const(parallel): place_gauss_pl(v,mu,sigma)
-    else:place_gauss_s(v, mu, sigma)
+    if nbu.force_const(parallel): _place_gauss_pl(v, mu, sigma)
+    else:_place_gauss_s(v, mu, sigma)
 
 
 @nbu.jtpc_s
@@ -119,10 +139,8 @@ def _place_gauss_pl1(a,mu=0.,sigma=1.):
 
 #idk yet what this decorator should be
 @nbu.rgc
-def random_orthogonals(a,ortho_mem,parallel=False):
+def _random_orthogonals(a,ortho_mem,parallel=False):
     #note in the future for this to be cached, ortho_mem should be a single block of array memory, unpack the needed memory later on the final interface.
-    if calc is None:
-        raise ModuleNotFoundError("aopt is required for random_orthogonals")
     place_gauss(a,parallel=parallel)
     calc.orthnorm_f(a,*ortho_mem)
     
@@ -131,46 +149,52 @@ def random_orthogonals(a,ortho_mem,parallel=False):
 ### Uniform  - defaults are set to ev=0, std = 1  
 @nbu.jtic #abbreviated decorators
 def place_uniform_s(a,l=-(3.**.5),u=3.**.5):
+    """Synchronously fill ``a`` in-place with uniform samples on ``[l, u]``."""
     itrs, ptr = nbu.buffer_nelems_andp(a)
     for i in range(itrs):ptr[i]=rand.uniform(l,u)
 
 @nbu.jtpc
 def place_uniform_pl(a,l=-(3.**.5),u=3.**.5):
+    """Parallel fill of ``a`` in-place with uniform samples on ``[l, u]``."""
     itrs, ptr = nbu.buffer_nelems_andp(a)
     for i in nb.prange(itrs): ptr[i]=rand.uniform(l,u)
 
 #A method I devised to force implementations to actually not include the compilation for the excluded bool method
 @nbu.ir_force_separate_pl(place_uniform_s,place_uniform_pl)
 def place_uniform(a, l=-(3.**.5),u=3.**.5, parallel=False):
+    """
+    Fill ``a`` in-place with uniform samples on ``[l, u]``.
+
+    :param a: Target array buffer.
+    :param l: Lower bound of the uniform distribution.
+    :param u: Upper bound of the uniform distribution.
+    :param parallel: Use parallel implementation when true.
+    :returns: None.
+    """
     if parallel: place_uniform_pl(a,l,u)
     else:place_uniform_s(a,l,u)
 
-### Gauss with 0 protection.
-@nbu.jtic
-def place_gauss_no0_s(a,mu=0.,sig=0.):
-    itrs, ptr = nbu.buffer_nelems_andp(a)
-    for i in range(itrs):ptr[i]=rand.gauss(mu,sig)
-
-@nbu.jtpc
-def place_gauss_no0_pl(a,mu=0.,sig=0.,):
-    itrs, ptr = nbu.buffer_nelems_andp(a)
-    for i in nb.prange(itrs): ptr[i]=rand.gauss(mu,sig)
-
-@nbu.ir_force_separate_pl(place_gauss_no0_s,place_gauss_no0_pl)
-def place_gauss_no0(a,mu=0.,sigma=1.,parallel=False):pass
-
 ### Rademacher.
 @nbu.jtic
-def place_rademacher_s(a, l=-1., u=1.):
+def _place_rademacher_s(a, l=-1., u=1.):
     itrs, ptr = nbu.buffer_nelems_andp(a)
     for i in range(itrs):ptr[i]=scaled_rademacher_rng(l, u)
 
 @nbu.jtpc
-def place_rademacher_pl(a,  l=-1., u=1.):
+def _place_rademacher_pl(a, l=-1., u=1.):
     itrs, ptr = nbu.buffer_nelems_andp(a) 
     for i in range(itrs):ptr[i]=scaled_rademacher_rng(l, u)
 
-@nbu.ir_force_separate_pl(place_rademacher_s,place_rademacher_pl)
+@nbu.ir_force_separate_pl(_place_rademacher_s, _place_rademacher_pl)
 def place_rademacher(a,l=-1.,u=1.,parallel=False):
-    if parallel: place_rademacher_pl(a,l,u)
-    else:place_rademacher_s(a,l,u)
+    """
+    Fill ``a`` in-place with Rademacher-style two-point samples.
+
+    :param a: Target array buffer.
+    :param l: Lower point value.
+    :param u: Upper point value.
+    :param parallel: Use parallel implementation when true.
+    :returns: None.
+    """
+    if parallel: _place_rademacher_pl(a, l, u)
+    else:_place_rademacher_s(a, l, u)
