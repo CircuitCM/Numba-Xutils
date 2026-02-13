@@ -5,7 +5,10 @@
 import math as mt
 import random as rand
 
-import aopt.calculations as calc
+try:
+    import aopt.calculations as calc
+except ModuleNotFoundError:
+    calc = None
 import numba as nb
 import numpy as np
 
@@ -118,6 +121,8 @@ def _place_gauss_pl1(a,mu=0.,sigma=1.):
 @nbu.rgc
 def random_orthogonals(a,ortho_mem,parallel=False):
     #note in the future for this to be cached, ortho_mem should be a single block of array memory, unpack the needed memory later on the final interface.
+    if calc is None:
+        raise ModuleNotFoundError("aopt is required for random_orthogonals")
     place_gauss(a,parallel=parallel)
     calc.orthnorm_f(a,*ortho_mem)
     

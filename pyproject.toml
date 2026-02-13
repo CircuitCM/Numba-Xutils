@@ -1,0 +1,65 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "nbux"
+version = "0.0.1"
+requires-python = ">=3.12"
+authors = [{name = "Charles Marks", email = "charlesmarksco@gmail.com"}]
+readme = "README.md"
+license = {file = "LICENSE"}
+classifiers = ["License :: OSI Approved :: MIT License"]
+dependencies = [
+  "numba",
+  "numpy",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["nbux"]
+
+[tool.coverage.run]
+branch = true
+core = "ctrace"
+
+[tool.coverage.report]
+exclude_also = [
+  "if __debug__",
+  'if self\.debug',
+  "raise AssertionError",
+  "raise NotImplementedError",
+  "if 0:",
+  "if __name__ == .__main__.:",
+  '@(abc\.)?abstractmethod',
+]
+ignore_errors = true
+
+[tool.coverage.html]
+directory = "tests/report/coverage"
+show_contexts = true
+
+[tool.pytest.ini_options]
+markers = ["regression: Tests that failed in old versions."]
+xfail_strict = true
+
+[tool.ruff]
+line-length = 120
+
+[tool.ruff.lint]
+select = ["I", "E4", "E5", "E7", "E9", "F", "B", "Q", "FA"]
+ignore = ["E701", "Q000", "Q001"]
+
+[tool.ruff.lint.isort]
+force-single-line = false
+combine-as-imports = true
+required-imports = ["from __future__ import annotations"]
+# float-to-top = true
+
+[tool.ruff.analyze]
+detect-string-imports = true
+
+# conda env seems broken for pyrefly rn
+# python-interpreter-path = "your/path"
+# conda-environment = "your_conda_env"
+[tool.pyrefly.errors]
+untyped-import = false
