@@ -20,6 +20,7 @@ _N = types.none
 # Some shorthands
 unroll = nb.literal_unroll
 CSeq = tuple[Any, ...] | list[Any]
+CSeqRuntime = (tuple, list)
 
 
 # implements
@@ -182,7 +183,6 @@ rgpc_s = rg_no_parallelperf_warn(rgpc)
 
 # --- OVERLOADS DECORATORS
 # I'm pretty sure caching is redundant for overloads, but assuming not and including.
-# TO Codex: if complains just use a ruff enable/disable for this block
 def ovs(impl: Callable[..., Any]) -> Callable[..., Any]:
     return overload(impl, jit_options=jit_s)
 
@@ -653,7 +653,7 @@ def op_call_args(call_op: Op, args: CSeq | Any = (), defr: Any = None) -> Any:
             return defr
 
     ct = callable(call_op)  # otherwise CSeq
-    rt = isinstance(args, CSeq)  # otherwise single element.
+    rt = isinstance(args, CSeqRuntime)  # otherwise single element.
     if ct:
         if rt:
             return call_op(*args)
@@ -665,7 +665,7 @@ def op_call_args(call_op: Op, args: CSeq | Any = (), defr: Any = None) -> Any:
 
 
 @ovsic(op_call_args)
-def _op_call_args(call_op: Op, args: CSeq | Any = (), defr=None):
+def _op_call_args(call_op, args=(), defr=None):
     """
     ``op_call_args`` overload for the Numba implementation.
 
@@ -686,12 +686,12 @@ def _op_call_args(call_op: Op, args: CSeq | Any = (), defr=None):
 
     if ct:
         if rt:
-            return lambda cal, args=(), defr=None: cal(*args)
-        return lambda cal, args=(), defr=None: cal(args)
+            return lambda call_op, args=(), defr=None: call_op(*args)
+        return lambda call_op, args=(), defr=None: call_op(args)
     else:
         if rt:
-            return lambda cal, args=(), defr=None: cal[0](*cal[1:], *args)
-        return lambda cal, args=(), defr=None: cal[0](*cal[1:], args)
+            return lambda call_op, args=(), defr=None: call_op[0](*call_op[1:], *args)
+        return lambda call_op, args=(), defr=None: call_op[0](*call_op[1:], args)
 
 
 def op_args(call_op: Op, args: CSeq | Any = (), defr: Any = None) -> Any:
@@ -737,7 +737,7 @@ def op_args(call_op: Op, args: CSeq | Any = (), defr: Any = None) -> Any:
             return defr
 
     ct = callable(call_op)
-    rt = isinstance(args, CSeq)
+    rt = isinstance(args, CSeqRuntime)
     if ct:
         if rt:
             return call_op(*args)
@@ -749,7 +749,7 @@ def op_args(call_op: Op, args: CSeq | Any = (), defr: Any = None) -> Any:
 
 
 @ovsic(op_args)
-def _op_args(call_op: Op, args: CSeq | Any = (), defr=None):
+def _op_args(call_op, args=(), defr=None):
     """
     ``op_args`` overload for the Numba implementation.
 
@@ -770,12 +770,12 @@ def _op_args(call_op: Op, args: CSeq | Any = (), defr=None):
 
     if ct:
         if rt:
-            return lambda cal, args=(), defr=None: cal(*args)
-        return lambda cal, args=(), defr=None: cal(args)
+            return lambda call_op, args=(), defr=None: call_op(*args)
+        return lambda call_op, args=(), defr=None: call_op(args)
     else:
         if rt:
-            return lambda cal, args=(), defr=None: cal[0](*cal[1:], *args)
-        return lambda cal, args=(), defr=None: cal[0](*cal[1:], args)
+            return lambda call_op, args=(), defr=None: call_op[0](*call_op[1:], *args)
+        return lambda call_op, args=(), defr=None: call_op[0](*call_op[1:], args)
 
 
 @rgc
@@ -1067,7 +1067,7 @@ def ir_force_separate_pl(
     return lambda ov_def: _ov_pl_factory(sync_impl, pl_impl, ov_def)
 
 
-### INDEX LOWERING OPS - a form of implicit internal broadcast indexing for arrays.
+### INDEX LOWERING OPS - a form of implicit internal broadcast indexing for arrays (maybe tuples).
 
 
 def l_1_0(x: np.ndarray | tuple[Any, ...], i1: int = 0) -> Any:

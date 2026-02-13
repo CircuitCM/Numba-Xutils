@@ -57,7 +57,7 @@ def arg_insert_sort(sr: np.ndarray, idxr: np.ndarray, small_first: bool = True) 
     if small_first:
         impl_arg_insert_sort(sr, idxr, lambda k1, k2: k1 < k2)
     else:
-        impl_insert_sort(sr, idxr, lambda k1, k2: k1 > k2)  # type: ignore[bad-argument-count]
+        impl_arg_insert_sort(sr, idxr, lambda k1, k2: k1 > k2)
 
 
 # SMALL_MERGESORT = 20 #original size, ~50 seems to provide better performance profile over large range

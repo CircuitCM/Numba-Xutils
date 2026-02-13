@@ -234,7 +234,7 @@ def signedroot_secant(
     dtyp: type[Any] | None = None,
 ) -> tuple[float, float, float, int]:
     """
-    A bracketed secant method that achieves (emperically) faster convergence by knowing the sign of the function to the
+    A bracketed secant method that achieves (empirically) faster convergence by knowing the sign of the function to the
     left and right of the root.
     It also allows us to select if the slope of our root is positive or negative when there are multiple roots. Which
     corresponds to finding local maxima or minima of the integrated line.
@@ -391,12 +391,7 @@ def signedroot_secant(
             break
 
     # 2 is no lower bracket found, 1 failed to converge in time, 0 success
-    return (
-        lam,
-        lo,
-        hi,
-        2 if not op_bracket else 1 if ict == 0 else 0,
-    )
+    return lam, lo, hi, 2 if not op_bracket else 1 if ict == 0 else 0
 
 
 @nbu.jt
@@ -480,15 +475,13 @@ def signedroot_quadinterp(
     _2 = dtyp(2.0)
     _4 = dtyp(4.0)
     _0 = dtyp(0.0)
-    sign = nbu.force_const(sign)  # this will cause a recompilation every time a different sign from previous is called.
+    sign = nbu.force_const(sign)  # this causes recompilation when sign differs from prior compiled calls.
     flo, fhi = nbu.op_call_args(f_op, lo), nbu.op_call_args(f_op, hi)
     if sign == -1:
         op_bracket = (fhi < _0) or eager
         fo, f = fhi, flo
-        lamo, lam = (
-            hi,
-            lo,
-        )  # We know lo is positive, so we are more confident in giving it the step 2 interpolation point.
+        # We know lo is positive, so we are more confident in giving it the step 2 interpolation point.
+        lamo, lam = hi, lo
         lrt, hrt = _1 - br_rate, br_rate  # we want eagerness away from known side. so smaller=more conservative.
     else:
         op_bracket = (flo < _0) or eager
