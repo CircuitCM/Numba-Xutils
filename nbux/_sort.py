@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import math as mt
+from collections.abc import Callable
+from typing import Any
 
 import numba as nb
 import numpy as np
@@ -9,7 +11,7 @@ import nbux.utils as nbu
 
 
 @nbu.jt
-def impl_insert_sort(sr, comp_call):
+def impl_insert_sort(sr: np.ndarray, comp_call: Callable[[Any, Any], bool]) -> None:
     """
     Insertion sort.
 
@@ -31,7 +33,7 @@ def impl_insert_sort(sr, comp_call):
 
 
 @nbu.jt
-def insert_sort(sr, small_first: bool = True) -> None:
+def insert_sort(sr: np.ndarray, small_first: bool = True) -> None:
     if small_first:
         impl_insert_sort(sr, lambda k1, k2: k1 < k2)
     else:
@@ -39,7 +41,7 @@ def insert_sort(sr, small_first: bool = True) -> None:
 
 
 @nbu.jt
-def impl_arg_insert_sort(sr, idxr, comp_call):
+def impl_arg_insert_sort(sr: np.ndarray, idxr: np.ndarray, comp_call: Callable[[Any, Any], bool]) -> None:
     for i in range(1, idxr.shape[0]):
         k = idxr[i]
         j = i
@@ -51,7 +53,7 @@ def impl_arg_insert_sort(sr, idxr, comp_call):
 
 
 @nbu.jt
-def arg_insert_sort(sr, idxr, small_first: bool = True) -> None:
+def arg_insert_sort(sr: np.ndarray, idxr: np.ndarray, small_first: bool = True) -> None:
     if small_first:
         impl_arg_insert_sort(sr, idxr, lambda k1, k2: k1 < k2)
     else:
@@ -61,7 +63,7 @@ def arg_insert_sort(sr, idxr, small_first: bool = True) -> None:
 # SMALL_MERGESORT = 20 #original size, ~50 seems to provide better performance profile over large range
 
 
-def make_merge_sort(argsort: bool = False, top_down: bool = True, ins_sep: int = 56):
+def make_merge_sort(argsort: bool = False, top_down: bool = True, ins_sep: int = 56) -> Callable[..., None]:
     """
     Create a merge sort implementation for Numba.
 
@@ -235,7 +237,7 @@ merge_sort = make_merge_sort(False, True, 56)
 
 # I'm adding search sorted here as unlike smooth/non-smooth lines, this is for finite sets.
 @nbu.jt
-def binary_argsearch(x, v, unsafe=None):
+def binary_argsearch(x: np.ndarray, v: Any, unsafe: Any | None = None) -> int:
     """
     Search sorted with tradeoff for a little perf benefit on small arrays, tradeoff calculated for f64.
 
@@ -255,7 +257,7 @@ def binary_argsearch(x, v, unsafe=None):
         return np.searchsorted(x, v)
 
 
-def _sqleq_arg(x, v, unsafe=None) -> None:
+def _sqleq_arg(x: np.ndarray, v: Any, unsafe: Any | None = None) -> int:
     """
     Sequential less than or equal right step. Unsafe not None will give you a small perf boost, but v MUST be in x.
     Note: NASA would hate this.
@@ -265,7 +267,7 @@ def _sqleq_arg(x, v, unsafe=None) -> None:
     :param unsafe: If not None, enables an unsafe fast-path.
     :returns: The insertion index.
     """
-    pass
+    return int(np.searchsorted(x, v))
 
 
 _N = nbu.types.none

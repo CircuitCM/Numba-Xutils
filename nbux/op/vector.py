@@ -123,7 +123,7 @@ def l2nm(x: np.ndarray) -> float:
 
 
 @nbu.jti
-def cxy(x: np.ndarray, y: np.ndarray):
+def cxy(x: np.ndarray, y: np.ndarray) -> np.ndarray:
     r"""`x = y`, $x := y$."""
     n = y.shape[0]
     for i in range(n):
@@ -132,7 +132,7 @@ def cxy(x: np.ndarray, y: np.ndarray):
 
 
 @nbu.jti
-def nxy(x: np.ndarray, y: np.ndarray):
+def nxy(x: np.ndarray, y: np.ndarray) -> np.ndarray:
     r"""`x = -y`, $x := -y$."""
     n = y.shape[0]
     for i in range(n):
@@ -141,7 +141,7 @@ def nxy(x: np.ndarray, y: np.ndarray):
 
 
 @nbu.jti
-def nx(x: np.ndarray):
+def nx(x: np.ndarray) -> np.ndarray:
     r"""`x = -x`, $x := -x$."""
     n = x.shape[0]
     for i in range(n):
@@ -150,7 +150,7 @@ def nx(x: np.ndarray):
 
 
 @nbu.jti
-def cxpy(x: np.ndarray, y: np.ndarray, s1: float):
+def cxpy(x: np.ndarray, y: np.ndarray, s1: float) -> np.ndarray:
     r"""`x = s1 * y`, $x := s_1 y$."""
     n = y.shape[0]
     s1 = nbu.type_ref(y)(s1)
@@ -160,7 +160,7 @@ def cxpy(x: np.ndarray, y: np.ndarray, s1: float):
 
 
 @nbu.jti
-def cxay(x: np.ndarray, y: np.ndarray, s1: float):
+def cxay(x: np.ndarray, y: np.ndarray, s1: float) -> np.ndarray:
     r"""`x = s1 + y`, $x := s_1 + y$."""
     n = y.shape[0]
     s1 = nbu.type_ref(y)(s1)
@@ -170,7 +170,7 @@ def cxay(x: np.ndarray, y: np.ndarray, s1: float):
 
 
 @nbu.jti
-def cxapy(x: np.ndarray, y: np.ndarray, s1: float, s2: float):
+def cxapy(x: np.ndarray, y: np.ndarray, s1: float, s2: float) -> np.ndarray:
     r"""`x = s1 + s2 * y`, $x := s_1 + s_2 y$."""
     n = y.shape[0]
     typ = nbu.type_ref(y)
@@ -181,7 +181,7 @@ def cxapy(x: np.ndarray, y: np.ndarray, s1: float, s2: float):
 
 
 @nbu.jti
-def axpy(x: np.ndarray, y: np.ndarray, s1: float):
+def axpy(x: np.ndarray, y: np.ndarray, s1: float) -> np.ndarray:
     r"""`x += s1 * y`, $x := x + s_1 y$."""
     n = y.shape[0]
     s1 = nbu.type_ref(y)(s1)
@@ -191,7 +191,7 @@ def axpy(x: np.ndarray, y: np.ndarray, s1: float):
 
 
 @nbu.jti
-def axay(x: np.ndarray, y: np.ndarray, s1: float):
+def axay(x: np.ndarray, y: np.ndarray, s1: float) -> np.ndarray:
     r"""`x += s1 + y`, $x := x + s_1 + y$."""
     n = y.shape[0]
     s1 = nbu.type_ref(y)(s1)
@@ -201,7 +201,7 @@ def axay(x: np.ndarray, y: np.ndarray, s1: float):
 
 
 @nbu.jti
-def axapy(x: np.ndarray, y: np.ndarray, s1: float, s2: float):
+def axapy(x: np.ndarray, y: np.ndarray, s1: float, s2: float) -> np.ndarray:
     r"""`x += s1 + s2 * y`, $x := x + s_1 + s_2 y$."""
     n = y.shape[0]
     typ = nbu.type_ref(y)
@@ -212,7 +212,7 @@ def axapy(x: np.ndarray, y: np.ndarray, s1: float, s2: float):
 
 
 @nbu.jti
-def pxaxpy(x: np.ndarray, y: np.ndarray, s1: float, s2: float):
+def pxaxpy(x: np.ndarray, y: np.ndarray, s1: float, s2: float) -> np.ndarray:
     r"""`x = s1 * x + s2 * y`, $x := s_1 x + s_2 y$."""
     n = y.shape[0]
     typ = nbu.type_ref(y)
@@ -223,7 +223,7 @@ def pxaxpy(x: np.ndarray, y: np.ndarray, s1: float, s2: float):
 
 
 @nbu.jti
-def pxaxy(x: np.ndarray, y: np.ndarray, s1: float):
+def pxaxy(x: np.ndarray, y: np.ndarray, s1: float) -> np.ndarray:
     r"""`x = s1 * x + y`, $x := s_1 x + y$."""
     n = y.shape[0]
     typ = nbu.type_ref(y)
@@ -238,7 +238,7 @@ def pxaxy(x: np.ndarray, y: np.ndarray, s1: float):
 # YES because intel cpu's have two load ports and one store port
 # https://en.wikichip.org/wiki/intel/microarchitectures/skylake_(client)#Scheduler_Ports_.26_Execution_Units
 @nbu.jti
-def cxpyapz(x: np.ndarray, y: np.ndarray, z: np.ndarray, s1: float, s2: float):
+def cxpyapz(x: np.ndarray, y: np.ndarray, z: np.ndarray, s1: float, s2: float) -> np.ndarray:
     r"""`x = s1 * y + s2 * z`, $x := s_1 y + s_2 z$."""
     n = y.shape[0]
     s1, s2 = nbu.type_ref(y)(s1), nbu.type_ref(z)(s2)
@@ -252,7 +252,7 @@ def cxpyapz(x: np.ndarray, y: np.ndarray, z: np.ndarray, s1: float, s2: float):
 
 # this is actual a 3 port load technically but still seems to improve in benchmarking.
 @nbu.jti
-def axpyapz(x: np.ndarray, y: np.ndarray, z: np.ndarray, s1: float, s2: float):
+def axpyapz(x: np.ndarray, y: np.ndarray, z: np.ndarray, s1: float, s2: float) -> np.ndarray:
     r"""`x += s1 * y + s2 * z`, $x := x + s_1 y + s_2 z$."""
     n = y.shape[0]
     s1, s2 = nbu.type_ref(y)(s1), nbu.type_ref(z)(s2)
@@ -262,7 +262,7 @@ def axpyapz(x: np.ndarray, y: np.ndarray, z: np.ndarray, s1: float, s2: float):
 
 
 @nbu.jti
-def cxpyaz(x: np.ndarray, y: np.ndarray, z: np.ndarray, s1: float):
+def cxpyaz(x: np.ndarray, y: np.ndarray, z: np.ndarray, s1: float) -> np.ndarray:
     r"""`x = s1 * y + z`, $x := s_1 y + z$."""
     n = y.shape[0]
     s1 = nbu.type_ref(y)(s1)
@@ -272,7 +272,7 @@ def cxpyaz(x: np.ndarray, y: np.ndarray, z: np.ndarray, s1: float):
 
 
 @nbu.jti
-def cxyaz(x: np.ndarray, y: np.ndarray, z: np.ndarray):
+def cxyaz(x: np.ndarray, y: np.ndarray, z: np.ndarray) -> np.ndarray:
     r"""`x = y + z`, $x := y + z$."""
     n = y.shape[0]
     for i in range(n):
@@ -282,7 +282,7 @@ def cxyaz(x: np.ndarray, y: np.ndarray, z: np.ndarray):
 
 # slight improvement here as well... which is strange.
 @nbu.jti
-def cxypz(x: np.ndarray, y: np.ndarray, z: np.ndarray, s1: float, s2: float):
+def cxypz(x: np.ndarray, y: np.ndarray, z: np.ndarray, s1: float, s2: float) -> tuple[np.ndarray, np.ndarray]:
     r"""`x = s1 * z; y = s2 * z`, $x := s_1 z,\; y := s_2 z$."""
     n = z.shape[0]
     typ = nbu.type_ref(z)
@@ -295,7 +295,7 @@ def cxypz(x: np.ndarray, y: np.ndarray, z: np.ndarray, s1: float, s2: float):
 
 
 @nbu.jti
-def axypz(x: np.ndarray, y: np.ndarray, z: np.ndarray, s1: float, s2: float):
+def axypz(x: np.ndarray, y: np.ndarray, z: np.ndarray, s1: float, s2: float) -> tuple[np.ndarray, np.ndarray]:
     r"""`x += s1 * z; y += s2 * z`, $x := x + s_1 z,\; y := y + s_2 z$."""
     n = z.shape[0]
     typ = nbu.type_ref(z)
@@ -364,7 +364,7 @@ def argminmax(x: np.ndarray) -> tuple[float, float, int, int]:
 
 
 @nbu.jtic
-def dtrace(x):
+def dtrace(x: np.ndarray) -> float:
     """Square Diagonal Trace"""
     t = nbu.type_ref(x)(0)
     for i in range(x.shape[0]):
@@ -373,28 +373,28 @@ def dtrace(x):
 
 
 @nbu.jtic
-def dadd(x, s):
+def dadd(x: np.ndarray, s: float) -> None:
     """Square diagonal Add."""
     for i in range(x.shape[0]):
         x[i, i] += s
 
 
 @nbu.jtic
-def dvadd(x, y):
+def dvadd(x: np.ndarray, y: np.ndarray) -> None:
     """Square diagonal vector Add."""
     for i in range(x.shape[0]):
         x[i, i] += y[i]
 
 
 @nbu.jtic
-def dmult(x, s):
+def dmult(x: np.ndarray, s: float) -> None:
     """Square diagonal Multiply."""
     for i in range(x.shape[0]):
         x[i, i] *= s
 
 
 @nbu.jtic
-def dvmult(x, y):
+def dvmult(x: np.ndarray, y: np.ndarray) -> None:
     """Square diagonal vector Multiply."""
     for i in range(x.shape[0]):
         x[i, i] *= y[i]

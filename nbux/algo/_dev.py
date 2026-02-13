@@ -10,21 +10,21 @@ import nbux.utils as nbu
 
 
 def lars1_constraintsolve_dev(
-    A,
-    y,
-    out,
-    At,
-    T1,
-    T2,
-    T3,
-    C,
-    idx_buf,
-    Ib,  # required memory.
+    A: np.ndarray,
+    y: np.ndarray,
+    out: np.ndarray,
+    At: np.ndarray,
+    T1: np.ndarray,
+    T2: np.ndarray,
+    T3: np.ndarray,
+    C: np.ndarray,
+    idx_buf: np.ndarray,
+    Ib: np.ndarray,  # required memory.
     eps: float = 1e-10,
     verbose: bool = False,
     mxitrs: int = -1,
     l2cond: float = -1.0,
-):
+) -> np.ndarray:
     """
     For more efficient memory usage we can assume m<=n always. and m s/b >= 2.
     List-free 1-add LARS / homotopy algorithm (basis pursuit).

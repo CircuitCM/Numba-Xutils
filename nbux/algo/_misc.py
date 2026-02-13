@@ -3,6 +3,7 @@ from __future__ import annotations
 import itertools
 import math as mt
 import random as rand
+from collections.abc import Sequence
 
 import numpy as np
 
@@ -15,7 +16,7 @@ aligned_buffer = nbu.aligned_buffer
 
 
 @nbu.jtc
-def gershgorin_l1_norms(A, t1, t2) -> tuple[float, np.ndarray, np.ndarray]:
+def gershgorin_l1_norms(A: np.ndarray, t1: np.ndarray, t2: np.ndarray) -> tuple[float, np.ndarray, np.ndarray]:
     """
     Gershgorin L1 norms for a symmetric matrix (C-order).
 
@@ -57,16 +58,16 @@ def gershgorin_l1_norms(A, t1, t2) -> tuple[float, np.ndarray, np.ndarray]:
 
 @nbu.jtnc  # this cant take a parallel decorator for some reason but that's not a problem I think.
 def lars1_constraintsolve(
-    A,
-    y,
-    out,
-    At,
-    T1,
-    T2,
-    T3,
-    C,
-    idx_buf,
-    Ib,  # required memory.
+    A: np.ndarray,
+    y: np.ndarray,
+    out: np.ndarray,
+    At: np.ndarray,
+    T1: np.ndarray,
+    T2: np.ndarray,
+    T3: np.ndarray,
+    C: np.ndarray,
+    idx_buf: np.ndarray,
+    Ib: np.ndarray,  # required memory.
     eps: float = 1e-10,
     l2cond: float = -1.0,
 ) -> np.ndarray:
@@ -213,7 +214,11 @@ def lars1_constraintsolve(
 
 @nbu.rgc
 def lars1_memspec(
-    sample_size, sample_dims, type_flt: type[np.float64] = np.float64, alignb: int = 64, buffer=None
+    sample_size: int,
+    sample_dims: int,
+    type_flt: type[np.float64] = np.float64,
+    alignb: int = 64,
+    buffer: np.ndarray | None = None,
 ) -> tuple[np.ndarray, ...]:
     # alignb is used to init arrays along instruction aligned memory blocks, avx512=64.
     def cd_(x, dv):
@@ -270,7 +275,9 @@ def durstenfeld_p_shuffle(a: np.ndarray, k: int = _I64) -> None:
 
 
 @nbu.jtc
-def latin_hypercube_sample(n_samples, bds) -> np.ndarray:
+def latin_hypercube_sample(
+    n_samples: int, bds: Sequence[tuple[float, float]] | np.ndarray | tuple[tuple[float, float], ...]
+) -> np.ndarray:
     # Initialize the sample array.
     lb = len(bds)
     sample = np.empty((n_samples, lb), dtype=np.float64)

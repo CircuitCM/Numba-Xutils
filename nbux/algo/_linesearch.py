@@ -2,12 +2,15 @@ from __future__ import annotations
 
 import math as mt
 from collections.abc import Callable
+from typing import Any
 
 import numpy as np
 
 import nbux.utils as nbu
 
 from ..op._misc import quadratic_newton_coef
+
+Op = Callable[..., float] | tuple[Callable[..., float], ...]
 
 # For now I'm implementing the safe/bracketing methods with just this stopping criteria: when our point becomes
 # "stationary enough". This is because for a complicated function or high order poly, the point can significantly impact
@@ -22,7 +25,7 @@ from ..op._misc import quadratic_newton_coef
 
 
 @nbu.rgi
-def not0_bisect(f_op, lo, hi, max_iters: int = 200, side: int = 1, typ: type[np.float64] = np.float64) -> float:
+def not0_bisect(f_op: Op, lo: float, hi: float, max_iters: int = 200, side: int = 1, typ: type = np.float64) -> float:
     """
     Bisect a function on a not-zero/zero boundary.
 
@@ -59,7 +62,7 @@ def not0_bisect(f_op, lo, hi, max_iters: int = 200, side: int = 1, typ: type[np.
 
 @nbu.rgi
 def root_bisect(
-    f_op, lo, hi, max_iters: int = 60, typ: type[np.float64] = np.float64, er_tol: float = 1e-14
+    f_op: Op, lo: float, hi: float, max_iters: int = 60, typ: type = np.float64, er_tol: float = 1e-14
 ) -> tuple[float, float]:
     """
     Root bisection, for unstable/discrete-ish roots.
@@ -217,18 +220,18 @@ def _bracketed_secant(f_op, lo, hi, er_tol: float = 1e-14, max_iters: int = 20, 
 
 @nbu.jt
 def signedroot_secant(
-    f_op: Callable,
+    f_op: Op,
     lo: float,
     hi: float,
-    br_rate=0.5,
-    max_iters=20,
+    br_rate: float = 0.5,
+    max_iters: int = 20,
     sign: int = 1,
     eager: bool = False,
     fallb: bool = False,
-    br_tol=None,
-    er_tol=None,
+    br_tol: float | None = None,
+    er_tol: float | None = None,
     rel_err: bool = True,
-    dtyp=None,
+    dtyp: type[Any] | None = None,
 ) -> tuple[float, float, float, int]:
     """
     A bracketed secant method that achieves (emperically) faster convergence by knowing the sign of the function to the
@@ -387,17 +390,25 @@ def signedroot_secant(
         if abs(lamo - lam) < er_tol:
             break
 
+    # 2 is no lower bracket found, 1 failed to converge in time, 0 success
     return (
         lam,
         lo,
         hi,
         2 if not op_bracket else 1 if ict == 0 else 0,
-    )  # 2 is no lower bracket found, 1 failed to converge in time, 0 success
+    )
 
 
 @nbu.jt
 def posroot_nofallb_secant(
-    f_op, lo, hi, br_rate: float = 0.5, max_iters: int = 15, br_tol=None, er_tol=None, dtyp=None
+    f_op: Op,
+    lo: float,
+    hi: float,
+    br_rate: float = 0.5,
+    max_iters: int = 15,
+    br_tol: float | None = None,
+    er_tol: float | None = None,
+    dtyp: type[Any] | None = None,
 ) -> tuple[float, float, float, int]:
     """
     This is a demo for users:
@@ -422,17 +433,17 @@ def posroot_nofallb_secant(
 
 @nbu.jt
 def signedroot_quadinterp(
-    f_op: Callable,
+    f_op: Op,
     lo: float,
     hi: float,
     br_rate: float = 0.5,
     max_iters: int = 15,
     sign: int = 1,
     eager: bool = True,
-    er_tol=None,
-    br_tol=None,
-    dtyp=None,
-):
+    er_tol: float | None = None,
+    br_tol: float | None = None,
+    dtyp: type[Any] | None = None,
+) -> tuple[float, float, float, int]:
     """
     Signed Root quadratic interpolation scheme. Functions exactly like signedroot_secant but uses a quadratic
     root solution, improving the convergence rate. This method can save more than a few iterations when the
@@ -557,31 +568,27 @@ def signedroot_quadinterp(
             flo = f
 
         if abs(lamo - lam) < er_tol:
-            break  # noqa: E701
+            break
 
-    return (
-        lam,
-        lo,
-        hi,
-        2 if not op_bracket else 1 if ict == 0 else 0,
-    )  # 2 is no lower bracket found, 1 failed to converge in time, 0 success
+    # 2 is no lower bracket found, 1 failed to converge in time, 0 success
+    return lam, lo, hi, 2 if not op_bracket else 1 if ict == 0 else 0
 
 
 @nbu.jt
 def signedroot_newton(
-    f_op: Callable,
-    g_op: Callable,
+    f_op: Op,
+    g_op: Op,
     lo: float,
     hi: float,
     br_rate: float = 0.5,
     max_iters: int = 12,
     sign: int = 1,
     eager: bool = True,
-    er_tol=None,
-    br_tol=None,
+    er_tol: float | None = None,
+    br_tol: float | None = None,
     rel_err: bool = True,
-    dtyp=None,
-):
+    dtyp: type[Any] | None = None,
+) -> tuple[float, float, float, int]:
     """
     A bracketed Newton method that exploits prior knowledge about the side of the root and the desired root slope sign.
 
@@ -680,20 +687,20 @@ def signedroot_newton(
 
 @nbu.jt
 def signseeking_halley(
-    f_op,
-    g_op,
-    c_op,
-    lo,
-    hi,
+    f_op: Op,
+    g_op: Op,
+    c_op: Op,
+    lo: float,
+    hi: float,
     br_rate: float = 0.5,
     max_iters: int = 12,
     sign: int = 1,
     eager: bool = True,
-    er_tol=None,
-    br_tol=None,
+    er_tol: float | None = None,
+    br_tol: float | None = None,
     rel_err: bool = True,
-    dtyp=None,
-):
+    dtyp: type[Any] | None = None,
+) -> tuple[float, float, float, int]:
     """
     A bracketed halley method that exploits prior knowledge about the side of the root and the desired root slope sign.
 
@@ -797,7 +804,7 @@ def signseeking_halley(
 
 
 @nbu.rgi
-def brents_method(f_op, lo, hi, er_tol: float = 1e-12, max_iters: int = 50) -> float:
+def brents_method(f_op: Op, lo: float, hi: float, er_tol: float = 1e-12, max_iters: int = 50) -> float:
     """
     Brent's method.
 

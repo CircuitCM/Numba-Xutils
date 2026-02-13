@@ -23,7 +23,7 @@ CSeq = tuple[Any, ...] | list[Any]
 
 
 # implements
-def njit_no_parallelperf_warn(**njit_kwargs):
+def njit_no_parallelperf_warn(**njit_kwargs: Any) -> Callable[[Callable[..., Any]], Any]:
     """
     Drop-in replacement for ``nb.njit(parallel=True)`` that suppresses the
     "parallel=True but no parallel transform" warning for this function only.
@@ -33,7 +33,7 @@ def njit_no_parallelperf_warn(**njit_kwargs):
     """
     jt = nb.njit(**njit_kwargs)
 
-    def decorator(func):
+    def decorator(func: Callable[..., Any]) -> Any:
         name = func.__name__  # might have to become __qualname__
         pattern = f"(?s)(?=.*parallel=True)(?=.*{name}).*"
         warnings.filterwarnings("ignore", category=NumbaPerformanceWarning, message=pattern)
@@ -42,8 +42,8 @@ def njit_no_parallelperf_warn(**njit_kwargs):
     return decorator
 
 
-def rg_no_parallelperf_warn(rrg):
-    def decorator(func):
+def rg_no_parallelperf_warn(rrg: Callable[[Callable[..., Any]], Any]) -> Callable[[Callable[..., Any]], Any]:
+    def decorator(func: Callable[..., Any]) -> Any:
         name = func.__name__
         pattern = f"(?s)(?=.*parallel=True)(?=.*{name}).*"
         warnings.filterwarnings("ignore", category=NumbaPerformanceWarning, message=pattern)
@@ -182,28 +182,29 @@ rgpc_s = rg_no_parallelperf_warn(rgpc)
 
 # --- OVERLOADS DECORATORS
 # I'm pretty sure caching is redundant for overloads, but assuming not and including.
-def ovs(impl):
+# TO Codex: if complains just use a ruff enable/disable for this block
+def ovs(impl: Callable[..., Any]) -> Callable[..., Any]:
     return overload(impl, jit_options=jit_s)
 
 
-def ovsi(impl):
+def ovsi(impl: Callable[..., Any]) -> Callable[..., Any]:
     return overload(impl, jit_options=jit_s, inline="always")
 
 
-def ovsc(impl):
+def ovsc(impl: Callable[..., Any]) -> Callable[..., Any]:
     return overload(impl, jit_options=jit_sc)
 
 
-def ovsic(impl):
+def ovsic(impl: Callable[..., Any]) -> Callable[..., Any]:
     return overload(impl, jit_options=jit_sc, inline="always")
 
 
 # It's also possible parallel is never directly utilized by overloads.
-def ovp(impl):
+def ovp(impl: Callable[..., Any]) -> Callable[..., Any]:
     return overload(impl, jit_options=jit_p)
 
 
-def ovpc(impl):
+def ovpc(impl: Callable[..., Any]) -> Callable[..., Any]:
     return overload(impl, jit_options=jit_pc)
 
 
@@ -234,7 +235,7 @@ def stack_empty_impl(typingctx, size, dtype):
     return sig, impl
 
 
-def stack_empty(size, shape, dtype) -> np.ndarray:
+def stack_empty(size: int, shape: int | tuple[int, ...], dtype: Any) -> np.ndarray:
     """
     Create a small stack-allocated array (Numba).
 
@@ -257,7 +258,7 @@ def stack_empty(size, shape, dtype) -> np.ndarray:
 
 
 @jtc
-def stack_empty_(size, shape, dtype):
+def stack_empty_(size: int, shape: int | tuple[int, ...], dtype: Any) -> np.ndarray:
     """
     The Numba implementation of ``stack_empty``.
 
@@ -412,7 +413,7 @@ ovsic(ri32)(lambda rd: (lambda rd: nb.int32(rd + nb.float32(0.5))))
 
 
 @rgic
-def display_round(f, m: int = 1, s: int = 10):
+def display_round(f: float, m: int = 1, s: int = 10) -> float:
     """
     A method to round floats so that when printed from numba's stdout it doesn't show roundoff tail error.
 
@@ -461,7 +462,7 @@ time and not run time.
 """
 
 
-def type_ref(arg):
+def type_ref(arg: Any) -> type[Any]:
     """Get the data type of an array, otherwise get the type of a value.
 
     Works in python and numba blocks.
@@ -497,7 +498,7 @@ def _type_ref(arg):
         return lambda arg: typ
 
 
-def if_val_cast(typ, val):
+def if_val_cast(typ: type[Any], val: Any) -> Any:
     if isinstance(val, (np.ndarray, Sequence)):
         return val
     else:
@@ -881,7 +882,7 @@ def _prim_info(typ, res):
 
 
 @jtic
-def placerange(r, start: int = 0, step: int = 1):
+def placerange(r: np.ndarray, start: int = 0, step: int = 1) -> None:
     """
     Like numpy arange but for existing arrays. Start and step may be float values.
 
@@ -895,7 +896,7 @@ def placerange(r, start: int = 0, step: int = 1):
 
 
 @rgi
-def swap(x, i, j) -> None:
+def swap(x: np.ndarray, i: int, j: int) -> None:
     """Array element swap shorthand.
 
     :param x: 1D array to perform element swap on.
@@ -908,7 +909,7 @@ def swap(x, i, j) -> None:
     x[j] = t
 
 
-def force_const(val):
+def force_const(val: Any) -> Any:
     """
     Within a numba block this forces referenced variables to become literal, mainly
     kwargs and args from the function header. Numba procedures compiled with a
@@ -935,7 +936,7 @@ def _force_const(val):
         return lambda val: nb.literally(val)
 
 
-def run_py(func, *args, **kwargs):
+def run_py(func: Callable[..., Any], *args: Any, **kwargs: Any) -> Any:
     """
     Numba's base python definition is inside the ``py_func`` field, if it exists we try to call it here.
 
@@ -945,12 +946,12 @@ def run_py(func, *args, **kwargs):
     :returns: The function result.
     """
     if hasattr(func, "py_func"):
-        func: Callable = func.py_func
+        func = func.py_func
 
     return func(*args, **kwargs)
 
 
-def run_numba(func, *args, verbose=False, **kwargs):
+def run_numba(func: Callable[..., Any], *args: Any, verbose: bool = False, **kwargs: Any) -> Any:
     """
     First attempts to call the numba dispatcher in fully compiled (no-python) mode.
 
@@ -976,7 +977,9 @@ def run_numba(func, *args, verbose=False, **kwargs):
 ### FORCED PARALLEL OR SYNC BLOCK
 
 
-def _ov_pl_factory(sync_impl, pl_impl, ov_def):
+def _ov_pl_factory(
+    sync_impl: Callable[..., Any], pl_impl: Callable[..., Any], ov_def: Callable[..., Any]
+) -> Callable[..., Any]:
     """
     The method I use to be completely sure that there are two separate implementations for parallel bool.
     Register a numba overload that routes to ``sync_impl`` or ``pl_impl``
@@ -1038,7 +1041,9 @@ def gener_ov({full_params}):
     return ov_def
 
 
-def ir_force_separate_pl(sync_impl, pl_impl):
+def ir_force_separate_pl(
+    sync_impl: Callable[..., Any], pl_impl: Callable[..., Any]
+) -> Callable[[Callable[..., Any]], Callable[..., Any]]:
     """
     This is a *decorator factory* that generates an overloads to **force** compile in
     fully synchronous or parallel implementations based on the ``pl`` or ``parallel`` argument at
@@ -1065,8 +1070,8 @@ def ir_force_separate_pl(sync_impl, pl_impl):
 ### INDEX LOWERING OPS - a form of implicit internal broadcast indexing for arrays.
 
 
-def l_1_0(x, i1: int = 0):
-    if type(x) is np.ndarray and len(x.shape) >= 1:
+def l_1_0(x: np.ndarray | tuple[Any, ...], i1: int = 0) -> Any:
+    if isinstance(x, (np.ndarray, tuple)) and len(x) >= 1:
         return x[i1]
     return x
 
@@ -1085,8 +1090,10 @@ def _l_1_0(x, i1: int = 0):
     return _impl
 
 
-def l_1_1(x, i1: int = 0):
+def l_1_1(x: np.ndarray | tuple[Any, ...], i1: int = 0) -> Any:
     if type(x) is np.ndarray and len(x.shape) >= 2:
+        return x[i1]
+    if isinstance(x, tuple) and len(x) >= 1 and isinstance(x[0], tuple):
         return x[i1]
     return x
 
@@ -1104,8 +1111,10 @@ def _l_1_1(x, i1: int = 0):
     return _impl
 
 
-def l_1_2(x, i1: int = 0):
+def l_1_2(x: np.ndarray | tuple[Any, ...], i1: int = 0) -> Any:
     if type(x) is np.ndarray and len(x.shape) >= 3:
+        return x[i1]
+    if isinstance(x, tuple) and len(x) >= 1 and isinstance(x[0], tuple) and isinstance(x[0][0], tuple):
         return x[i1]
     return x
 
@@ -1123,11 +1132,16 @@ def _l_1_2(x, i1: int = 0):
     return _impl
 
 
-def l_12_0(x, i1: int = 0, i2: int = 0):
+def l_12_0(x: np.ndarray | tuple[Any, ...], i1: int = 0, i2: int = 0) -> Any:
     if type(x) is np.ndarray:
         if len(x.shape) >= 2:
             return x[i1, i2]
         elif len(x.shape) == 1:
+            return x[i1]
+    if isinstance(x, tuple):
+        if len(x) >= 1 and isinstance(x[0], tuple):
+            return x[i1][i2]
+        elif len(x) == 1:
             return x[i1]
     return x
 
@@ -1151,11 +1165,16 @@ def _l_12_0(x, i1: int = 0, i2: int = 0):
     return _impl
 
 
-def l_21_0(x, i1: int = 0, i2: int = 0):
+def l_21_0(x: np.ndarray | tuple[Any, ...], i1: int = 0, i2: int = 0) -> Any:
     if type(x) is np.ndarray:
         if len(x.shape) >= 2:
             return x[i1, i2]
         elif len(x.shape) == 1:
+            return x[i2]
+    if isinstance(x, tuple):
+        if len(x) >= 1 and isinstance(x[0], tuple):
+            return x[i1][i2]
+        elif len(x) == 1:
             return x[i2]
     return x
 
@@ -1179,13 +1198,18 @@ def _l_21_0(x, i1: int = 0, i2: int = 0):
     return _impl
 
 
-def l_12_d(x, i1: int = 0, i2: int = 0, d: int = 0):
+def l_12_d(x: np.ndarray | tuple[Any, ...], i1: int = 0, i2: int = 0, d: int = 0) -> Any:
     if isinstance(d, nb.types.Literal):
         d = d.literal_value
     if type(x) is np.ndarray:
         if len(x.shape) >= 2 + d:
             return x[i1, i2]
         elif len(x.shape) == 1 + d:
+            return x[i1]
+    if isinstance(x, tuple):
+        if d == 0 and len(x) >= 1 and isinstance(x[0], tuple):
+            return x[i1][i2]
+        elif d == 0 and len(x) == 1:
             return x[i1]
     return x
 

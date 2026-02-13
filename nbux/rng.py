@@ -16,7 +16,7 @@ import nbux.utils as nbu
 
 
 @nbu.jt
-def durstenfeld_p_shuffle(a, k=None) -> None:
+def durstenfeld_p_shuffle(a: np.ndarray, k: int | None = None) -> None:
     """
     Perform up to k swaps of the Durstenfeld shuffle on array 'v'.
     Shuffling should still be unbiased even if a isn't changed back to sorted.
@@ -37,7 +37,7 @@ def durstenfeld_p_shuffle(a, k=None) -> None:
 
 ##Legacy
 @nbu.jtic
-def jt_uniform_rng(a, b) -> float:
+def jt_uniform_rng(a: float, b: float) -> float:
     """Return a single uniform random value between ``a`` and ``b``."""
     return rand.uniform(a, b)
 
@@ -51,7 +51,7 @@ def _ss(f) -> None:
     np.random.seed(f)
 
 
-def set_seed(seed) -> None:
+def set_seed(seed: int | None) -> None:
     """Set both ``random`` and ``numpy.random`` seeds when ``seed`` is not ``None``."""
     if seed is not None:
         _ss(seed)
@@ -108,7 +108,7 @@ def normal_rng_protect(mu: float = 0.0, sig: float = 1.0, pr: float = 0.001) -> 
 
 ### Gauss
 @nbu.jtic
-def _place_gauss_s(a, mu=0.0, sig=0.0):
+def _place_gauss_s(a: np.ndarray, mu: float = 0.0, sig: float = 0.0) -> None:
     itrs, ptr = nbu.buffer_nelems_andp(a)
     for i in range(itrs):
         ptr[i] = rand.gauss(mu, sig)
@@ -116,10 +116,10 @@ def _place_gauss_s(a, mu=0.0, sig=0.0):
 
 @nbu.jtpc
 def _place_gauss_pl(
-    a,
-    mu=0.0,
-    sig=0.0,
-):
+    a: np.ndarray,
+    mu: float = 0.0,
+    sig: float = 0.0,
+) -> None:
     itrs, ptr = nbu.buffer_nelems_andp(a)
     # ld = nb.set_parallel_chunksize(mt.ceil(v.size / nb.get_num_threads()))
     for i in nb.prange(itrs):
@@ -129,7 +129,7 @@ def _place_gauss_pl(
 
 # Only method I found to be certain the rng implements are compiling separately.
 @nbu.ir_force_separate_pl(_place_gauss_s, _place_gauss_pl)
-def place_gauss(a, mu=0.0, sigma=1.0, parallel=False) -> None:
+def place_gauss(a: np.ndarray, mu: float = 0.0, sigma: float = 1.0, parallel: bool = False) -> None:
     """
     Fill ``a`` in-place with Gaussian samples.
 
@@ -147,7 +147,7 @@ def place_gauss(a, mu=0.0, sigma=1.0, parallel=False) -> None:
 
 # EXAMPLES
 @nbu.jtc  # doesn't work, both the parallel and sync functions still compiled in. Seen in byte code.
-def _place_gauss(v, mu: float = 0.0, sigma: float = 1.0, parallel: bool = False):
+def _place_gauss(v: np.ndarray, mu: float = 0.0, sigma: float = 1.0, parallel: bool = False) -> None:
     if nbu.force_const(parallel):
         _place_gauss_pl(v, mu, sigma)
     else:
@@ -172,7 +172,7 @@ def _place_gauss_pl1(a, mu: float = 0.0, sigma: float = 1.0) -> None:
 
 # idk yet what this decorator should be
 @nbu.rgc
-def _random_orthogonals(a, ortho_mem, parallel: bool = False) -> None:
+def _random_orthogonals(a: np.ndarray, ortho_mem: tuple[np.ndarray, ...], parallel: bool = False) -> None:
     # note in the future for this to be cached, ortho_mem should be a single block of array memory, unpack the needed
     # memory later on the final interface.
     place_gauss(a, parallel=parallel)
@@ -181,7 +181,7 @@ def _random_orthogonals(a, ortho_mem, parallel: bool = False) -> None:
 
 ### Uniform  - defaults are set to ev=0, std = 1
 @nbu.jtic  # abbreviated decorators
-def place_uniform_s(a, low=-(3.0**0.5), high=3.0**0.5) -> None:
+def place_uniform_s(a: np.ndarray, low: float = -(3.0**0.5), high: float = 3.0**0.5) -> None:
     """Synchronously fill ``a`` in-place with uniform samples on ``[low, high]``."""
     itrs, ptr = nbu.buffer_nelems_andp(a)
     for i in range(itrs):
@@ -189,7 +189,7 @@ def place_uniform_s(a, low=-(3.0**0.5), high=3.0**0.5) -> None:
 
 
 @nbu.jtpc
-def place_uniform_pl(a, low=-(3.0**0.5), high=3.0**0.5) -> None:
+def place_uniform_pl(a: np.ndarray, low: float = -(3.0**0.5), high: float = 3.0**0.5) -> None:
     """Parallel fill of ``a`` in-place with uniform samples on ``[low, high]``."""
     itrs, ptr = nbu.buffer_nelems_andp(a)
     for i in nb.prange(itrs):
@@ -198,7 +198,12 @@ def place_uniform_pl(a, low=-(3.0**0.5), high=3.0**0.5) -> None:
 
 # A method I devised to force implementations to actually not include the compilation for the excluded bool method
 @nbu.ir_force_separate_pl(place_uniform_s, place_uniform_pl)
-def place_uniform(a, low=-(3.0**0.5), high=3.0**0.5, parallel: bool = False) -> None:
+def place_uniform(
+    a: np.ndarray,
+    low: float = -(3.0**0.5),
+    high: float = 3.0**0.5,
+    parallel: bool = False,
+) -> None:
     """
     Fill ``a`` in-place with uniform samples on ``[low, high]``.
 
@@ -216,21 +221,21 @@ def place_uniform(a, low=-(3.0**0.5), high=3.0**0.5, parallel: bool = False) -> 
 
 ### Rademacher.
 @nbu.jtic
-def _place_rademacher_s(a, low=-1.0, high=1.0):
+def _place_rademacher_s(a: np.ndarray, low: float = -1.0, high: float = 1.0) -> None:
     itrs, ptr = nbu.buffer_nelems_andp(a)
     for i in range(itrs):
         ptr[i] = scaled_rademacher_rng(low, high)
 
 
 @nbu.jtpc
-def _place_rademacher_pl(a, low=-1.0, high=1.0):
+def _place_rademacher_pl(a: np.ndarray, low: float = -1.0, high: float = 1.0) -> None:
     itrs, ptr = nbu.buffer_nelems_andp(a)
     for i in range(itrs):
         ptr[i] = scaled_rademacher_rng(low, high)
 
 
 @nbu.ir_force_separate_pl(_place_rademacher_s, _place_rademacher_pl)
-def place_rademacher(a, low: float = -1.0, high: float = 1.0, parallel: bool = False) -> None:
+def place_rademacher(a: np.ndarray, low: float = -1.0, high: float = 1.0, parallel: bool = False) -> None:
     """
     Fill ``a`` in-place with Rademacher-style two-point samples.
 

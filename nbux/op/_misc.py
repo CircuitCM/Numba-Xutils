@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import math as mt
+from collections.abc import Callable, Sequence
+from typing import Any
 
 import numba as nb
 import numpy as np
@@ -14,8 +16,11 @@ BLAS_PACK = False
 LAPACK_UPPER = types.char((ord("U")))
 
 
+# yes maybe trivial, still type it.
 @nbu.rg
-def quadratic_newton_coef(x0, x1, x2, f0, f1, f2) -> tuple[float, float, float]:
+def quadratic_newton_coef(
+    x0: float, x1: float, x2: float, f0: float, f1: float, f2: float
+) -> tuple[float, float, float]:
     """
     Quadratic polynomial coefficients using Newton's divided differences procedure.
 
@@ -43,7 +48,9 @@ def quadratic_newton_coef(x0, x1, x2, f0, f1, f2) -> tuple[float, float, float]:
 
 
 @nbu.rg
-def cubic_newton_coef(x0, x1, x2, x3, f0, f1, f2, f3) -> tuple[float, float, float, float]:
+def cubic_newton_coef(
+    x0: float, x1: float, x2: float, x3: float, f0: float, f1: float, f2: float, f3: float
+) -> tuple[float, float, float, float]:
     """
     Cubic polynomial coefficients using Newton's divided differences procedure.
 
@@ -83,7 +90,9 @@ def cubic_newton_coef(x0, x1, x2, x3, f0, f1, f2, f3) -> tuple[float, float, flo
 
 
 @nbu.rgi
-def cubic_lagrange_coef(x0, x1, x2, x3, f0, f1, f2, f3) -> tuple[float, float, float, float]:
+def cubic_lagrange_coef(
+    x0: float, x1: float, x2: float, x3: float, f0: float, f1: float, f2: float, f3: float
+) -> tuple[float, float, float, float]:
     """
     Cubic polynomial coefficients calculated by Lagrange interpolation.
 
@@ -152,7 +161,7 @@ def cubic_lagrange_coef(x0, x1, x2, x3, f0, f1, f2, f3) -> tuple[float, float, f
 
 
 @nbu.rgi
-def horner_eval(x, coefs) -> float:
+def horner_eval(x: float, coefs: np.ndarray | tuple[float, ...]) -> float:
     """
     Horner evaluation kernel.
 
@@ -170,7 +179,7 @@ def horner_eval(x, coefs) -> float:
 
 
 @nbu.jtic
-def sqr_lh(out) -> None:
+def sqr_lh(out: np.ndarray) -> None:
     """
     Square matrix lower-half fill.
 
@@ -187,7 +196,7 @@ def sqr_lh(out) -> None:
 
 
 @nbu.jtic
-def sqr_uh(out) -> None:
+def sqr_uh(out: np.ndarray) -> None:
     """
     Square matrix upper-half fill.
 
@@ -206,21 +215,31 @@ def sqr_uh(out) -> None:
 if BLAS_PACK:
 
     def mmul_cself(
-        a, out, a_mult: float = 1.0, rem_mult: float = 0.0, sym: bool = False, outer: bool = True
+        a: np.ndarray,
+        out: np.ndarray,
+        a_mult: float = 1.0,
+        rem_mult: float = 0.0,
+        sym: bool = False,
+        outer: bool = True,
     ) -> np.ndarray:
         return out  # to replaced after blas_lapack implementations are added.
 
-    def cholesky_fsolve_inplace(a, b, uplo=LAPACK_UPPER) -> np.ndarray:
+    def cholesky_fsolve_inplace(a: np.ndarray, b: np.ndarray, uplo: Any = LAPACK_UPPER) -> np.ndarray:
         return b
 
-    def potrs(L, x) -> np.ndarray:
+    def potrs(L: np.ndarray, x: np.ndarray) -> np.ndarray:
         return x
 
 else:
 
     @nbu.jtc
     def mmul_cself(
-        a, out, a_mult: float = 1.0, rem_mult: float = 0.0, sym: bool = False, outer: bool = True
+        a: np.ndarray,
+        out: np.ndarray,
+        a_mult: float = 1.0,
+        rem_mult: float = 0.0,
+        sym: bool = False,
+        outer: bool = True,
     ) -> np.ndarray:
         """
         Matrix multiply self (C-ordered). This like BLAS syrk with a more friendly interface.
@@ -258,15 +277,14 @@ else:
             np.dot(a, ax, out=out)
         else:
             ac = np.dot(a, ax)
-            opv.pxaxy(
-                out.ravel(), ac.ravel(), rem_mult
-            )  # dimensions should match so this is faster than multi-looping.
+            # dimensions should match so this is faster than multi-looping.
+            opv.pxaxy(out.ravel(), ac.ravel(), rem_mult)
 
         # if sym:sqr_lh(v,out)
         return out
 
     @nbu.jt
-    def potrs(L, x) -> np.ndarray:
+    def potrs(L: np.ndarray, x: np.ndarray) -> np.ndarray:
         """
         An unoptimized ``potrs`` substitute.
 
@@ -299,7 +317,7 @@ else:
         return x
 
     @nbu.jtc
-    def cholesky_fsolve_inplace(a, b, uplo=LAPACK_UPPER) -> np.ndarray:
+    def cholesky_fsolve_inplace(a: np.ndarray, b: np.ndarray, uplo: Any = LAPACK_UPPER) -> np.ndarray:
         # col major upper is = row major lower for c array.
         L = np.linalg.cholesky(a)
         return potrs(L, b)
@@ -312,7 +330,7 @@ jt_pl = nb.njit(fastmath=True, error_model="numpy", parallel=True)
 
 @jt_pl
 def grid_eval_exec(
-    bounds: np.ndarray | tuple, fitness: np.ndarray, eval_op
+    bounds: np.ndarray | tuple[Any, ...], fitness: np.ndarray, eval_op: tuple[Callable[..., float], ...]
 ) -> tuple[np.ndarray, float, float]:  # grid eval adjusted to widths of bounds.
     """
     The executor for grid evaluation of the numba func.
@@ -361,7 +379,10 @@ def grid_eval_exec(
 
 
 def grid_eval(
-    eval_op, bounds, num_points: int = 2**15, return_with_dims: bool = True
+    eval_op: tuple[Callable[..., float], ...],
+    bounds: Sequence[tuple[float, float]] | tuple[tuple[float, float], ...] | np.ndarray,
+    num_points: int = 2**15,
+    return_with_dims: bool = True,
 ) -> tuple[np.ndarray, float, float]:
     bounds = np.array(bounds, np.float64)  # for easy reshaping and indexing.
     dims = bounds.shape[0]  # get dims for equal # pts per dim
