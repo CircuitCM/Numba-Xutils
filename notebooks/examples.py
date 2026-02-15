@@ -1,6 +1,6 @@
 import numba as nb
 import numpy as np
-from nevergrad.benchmark.experiments import parallel
+#from nevergrad.benchmark.experiments import parallel
 
 ### --- 1: OPERATOR STRATEGY
 jt=nb.njit(fastmath=True, error_model='numpy')
