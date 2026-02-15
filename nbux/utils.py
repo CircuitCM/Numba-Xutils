@@ -183,41 +183,34 @@ rgpc_s = rg_no_parallelperf_warn(rgpc)
 
 # --- OVERLOADS DECORATORS
 # I'm pretty sure caching is redundant for overloads, but assuming not and including.
-def ovs(impl: Callable[..., Any]) -> Callable[..., Any]:
-    return overload(impl, jit_options=jit_s)
+def ovs(impl: Callable[..., Any]) -> Callable[..., Any]: return overload(impl, jit_options=jit_s)
 
 
-def ovsi(impl: Callable[..., Any]) -> Callable[..., Any]:
-    return overload(impl, jit_options=jit_s, inline="always")
+def ovsi(impl: Callable[..., Any]) -> Callable[..., Any]: return overload(impl, jit_options=jit_s, inline="always")
 
 
-def ovsc(impl: Callable[..., Any]) -> Callable[..., Any]:
-    return overload(impl, jit_options=jit_sc)
+def ovsc(impl: Callable[..., Any]) -> Callable[..., Any]: return overload(impl, jit_options=jit_sc)
 
 
-def ovsic(impl: Callable[..., Any]) -> Callable[..., Any]:
-    return overload(impl, jit_options=jit_sc, inline="always")
+def ovsic(impl: Callable[..., Any]) -> Callable[..., Any]: return overload(impl, jit_options=jit_sc, inline="always")
 
 
 # It's also possible parallel is never directly utilized by overloads.
-def ovp(impl: Callable[..., Any]) -> Callable[..., Any]:
-    return overload(impl, jit_options=jit_p)
+def ovp(impl: Callable[..., Any]) -> Callable[..., Any]: return overload(impl, jit_options=jit_p)
 
 
-def ovpc(impl: Callable[..., Any]) -> Callable[..., Any]:
-    return overload(impl, jit_options=jit_pc)
+def ovpc(impl: Callable[..., Any]) -> Callable[..., Any]: return overload(impl, jit_options=jit_pc)
 
 
 # shorthand
 fb_ = np.frombuffer
 
 
-def compiletime_parallelswitch() -> None:
-    pass
+def compiletime_parallelswitch() -> None: pass  # pragma: no cover
 
 
 @intrinsic
-def stack_empty_impl(typingctx, size, dtype):
+def stack_empty_impl(typingctx, size, dtype):  # pragma: no cover
     """
     Low level llvm call for stack_empty.
 
@@ -258,7 +251,7 @@ def stack_empty(size: int, shape: int | tuple[int, ...], dtype: Any) -> np.ndarr
 
 
 @jtc
-def stack_empty_(size: int, shape: int | tuple[int, ...], dtype: Any) -> np.ndarray:
+def stack_empty_(size: int, shape: int | tuple[int, ...], dtype: Any) -> np.ndarray:  # pragma: no cover
     """
     The Numba implementation of ``stack_empty``.
 
@@ -273,7 +266,7 @@ def stack_empty_(size: int, shape: int | tuple[int, ...], dtype: Any) -> np.ndar
 
 
 @ovs  # c
-def _stack_empty(size, shape, dtype):
+def _stack_empty(size, shape, dtype):  # pragma: no cover
     """
     Overload for ``stack_empty``.
 
@@ -290,7 +283,7 @@ def _stack_empty(size, shape, dtype):
 
 # can probably use this to replace the self archive tracking for de-bpesta mutation.
 @intrinsic
-def nb_val_ptr(typingctx, data):
+def nb_val_ptr(typingctx, data):  # pragma: no cover
     """Get the address of any numba primitive value.
 
     Use for setting or getting values in some non-local setting within numba, e.g. a call to certain LAPACK or BLAS
@@ -328,7 +321,7 @@ def nb_val_ptr(typingctx, data):
 
 
 @intrinsic
-def nb_ptr_val(typingctx, data):
+def nb_ptr_val(typingctx, data):  # pragma: no cover
     """Get the value from a pointer/address.
 
     See ``nb_val_ptr``.
@@ -355,14 +348,13 @@ def nb_array_ptr(typingctx, arr_typ):
     """
     elptr = types.CPointer(arr_typ.dtype)
 
-    def codegen(ctx, builder, sig, args):
-        return ctx.make_helper(builder, sig.args[0], args[0]).data
+    def codegen(ctx, builder, sig, args): return ctx.make_helper(builder, sig.args[0], args[0]).data
 
     return elptr(arr_typ), codegen
 
 
 @jtic
-def buffer_nelems_andp(arr: np.ndarray) -> tuple[int, Sequence]:
+def buffer_nelems_andp(arr: np.ndarray) -> tuple[int, Sequence]:  # pragma: no cover
     """
     Return the total element count and a pointer-like view for an array buffer.
 
@@ -382,8 +374,7 @@ def buffer_nelems_andp(arr: np.ndarray) -> tuple[int, Sequence]:
     # We will tell typing that this is a Sequence, because a datatype pointer will have a __getitem__.
     ptr: Sequence = nb_array_ptr(arr)  # type: ignore[bad-assignment]
     size = arr.size
-    if arr.ndim < 2:
-        return size, ptr  # noqa: E701
+    if arr.ndim < 2: return size, ptr  # noqa: E701
     # fast C vs F test via stride magnitudes
     s1, s2 = (
         (-1, -2) if abs(arr.strides[0]) >= abs(arr.strides[-1]) else (0, 1)
@@ -398,8 +389,7 @@ def buffer_nelems_andp(arr: np.ndarray) -> tuple[int, Sequence]:
 
 # WARNING fastmath can produce different results.
 # The only one that is a little faster than np.round is the int32
-def ri64(rd: float) -> int:
-    return int(rd + 0.5)
+def ri64(rd: float) -> int: return int(rd + 0.5)
 
 
 ri32 = ri64
@@ -472,14 +462,12 @@ def type_ref(arg: Any) -> type[Any]:
     :param arg: Value or array.
     :returns: A dtype/type reference for ``arg``.
     """
-    if isinstance(arg, np.ndarray):
-        return arg.dtype.type
-    else:
-        return type(arg)
+    if isinstance(arg, np.ndarray): return arg.dtype.type
+    else: return type(arg)
 
 
 @ovsic(type_ref)
-def _type_ref(arg):
+def _type_ref(arg):  # pragma: no cover
     """
     Numba overloads for type_ref.
 
@@ -499,14 +487,12 @@ def _type_ref(arg):
 
 
 def if_val_cast(typ: type[Any], val: Any) -> Any:
-    if isinstance(val, (np.ndarray, Sequence)):
-        return val
-    else:
-        return typ(val)
+    if isinstance(val, (np.ndarray, Sequence)): return val
+    else: return typ(val)
 
 
 @ovsic(if_val_cast)
-def _if_val_cast(typ, val):
+def _if_val_cast(typ, val):  # pragma: no cover
     """
     Overloads impl.
 
@@ -514,10 +500,8 @@ def _if_val_cast(typ, val):
     :param val: Input value.
     :returns: An overload implementation for ``if_val_cast``.
     """
-    if isinstance(val, types.IterableType):
-        return lambda typ, val: val
-    else:
-        return lambda typ, val: typ(val)
+    if isinstance(val, types.IterableType): return lambda typ, val: val
+    else: return lambda typ, val: typ(val)
 
 
 Op = Callable[..., Any] | NoneType | CSeq
@@ -581,28 +565,22 @@ def op_call(call_op: Op, defr: Any = True) -> Any:
     :returns: The evaluated result, or ``defr``.
     """
 
-    if callable(call_op):
-        return call_op()
+    if callable(call_op): return call_op()
     elif isinstance(call_op, (tuple, list)):
-        if isinstance(call_op[0], Callable):
-            return call_op[0](*call_op[1:])
+        if isinstance(call_op[0], Callable): return call_op[0](*call_op[1:])
     # In case we want a default value to return when is optional. eg a premature stopping criterial for an algorithm
     # when not used should return True always for a 'should continue?'
-    if defr is not None:
-        return defr
+    if defr is not None: return defr
     return call_op
 
 
 @ovsic(op_call)
-def _op_call(call_op: Op, defr: bool = True):
-    if isinstance(call_op, types.Callable):
-        return lambda call_op, defr=True: call_op()
+def _op_call(call_op: Op, defr: bool = True):  # pragma: no cover
+    if isinstance(call_op, types.Callable): return lambda call_op, defr=True: call_op()
     # ruff: disable[F821]
     elif isinstance(call_op, types.BaseTuple | types.LiteralList):
-        if isinstance(call_op[0], types.Callable):
-            return lambda call_op, defr=True: call_op[0](*call_op[1:])
-    if defr is not _N:
-        return lambda call_op, defr=True: defr
+        if isinstance(call_op[0], types.Callable): return lambda call_op, defr=True: call_op[0](*call_op[1:])
+    if defr is not _N: return lambda call_op, defr=True: defr
     return lambda call_op, defr=True: call_op
 
 
@@ -647,25 +625,21 @@ def op_call_args(call_op: Op, args: CSeq | Any = (), defr: Any = None) -> Any:
     """
 
     if isinstance(call_op, NoneType):  # so ruff doesn't complain
-        if defr is None:
-            return call_op
-        else:
-            return defr
+        if defr is None: return call_op
+        else: return defr
 
     ct = callable(call_op)  # otherwise CSeq
     rt = isinstance(args, CSeqRuntime)  # otherwise single element.
     if ct:
-        if rt:
-            return call_op(*args)
+        if rt: return call_op(*args)
         return call_op(args)
     else:
-        if rt:
-            return call_op[0](*args, *call_op[1:])
+        if rt: return call_op[0](*args, *call_op[1:])
         return call_op[0](args, *call_op[1:])
 
 
 @ovsic(op_call_args)
-def _op_call_args(call_op, args=(), defr=None):
+def _op_call_args(call_op, args=(), defr=None):  # pragma: no cover
     """
     ``op_call_args`` overload for the Numba implementation.
 
@@ -676,22 +650,18 @@ def _op_call_args(call_op, args=(), defr=None):
     """
     # ruff: disable[F821]
     if call_op is _N:
-        if defr is _N or defr is None:
-            return call_op
-        else:
-            return defr
+        if defr is _N or defr is None: return call_op
+        else: return defr
 
     ct = isinstance(call_op, types.Callable)
     rt = isinstance(args, (types.BaseTuple, types.LiteralList))
 
     if ct:
-        if rt:
-            return lambda call_op, args=(), defr=None: call_op(*args)
+        if rt: return lambda call_op, args=(), defr=None: call_op(*args)
         return lambda call_op, args=(), defr=None: call_op(args)
     else:
-        if rt:
-            return lambda call_op, args=(), defr=None: call_op[0](*call_op[1:], *args)
-        return lambda call_op, args=(), defr=None: call_op[0](*call_op[1:], args)
+        if rt: return lambda call_op, args=(), defr=None: call_op[0](*args,*call_op[1:])
+        return lambda call_op, args=(), defr=None: call_op[0](args,*call_op[1:])
 
 
 def op_args(call_op: Op, args: CSeq | Any = (), defr: Any = None) -> Any:
@@ -731,25 +701,21 @@ def op_args(call_op: Op, args: CSeq | Any = (), defr: Any = None) -> Any:
     """
 
     if isinstance(call_op, NoneType):
-        if defr is None:
-            return call_op
-        else:
-            return defr
+        if defr is None: return call_op
+        else: return defr
 
     ct = callable(call_op)
     rt = isinstance(args, CSeqRuntime)
     if ct:
-        if rt:
-            return call_op(*args)
+        if rt: return call_op(*args)
         return call_op(args)
     else:
-        if rt:
-            return call_op[0](*call_op[1:], *args)
+        if rt: return call_op[0](*call_op[1:], *args)
         return call_op[0](*call_op[1:], args)
 
 
 @ovsic(op_args)
-def _op_args(call_op, args=(), defr=None):
+def _op_args(call_op, args=(), defr=None):  # pragma: no cover
     """
     ``op_args`` overload for the Numba implementation.
 
@@ -760,21 +726,17 @@ def _op_args(call_op, args=(), defr=None):
     """
     # ruff: disable[F821]
     if call_op is _N:
-        if defr is _N or defr is None:
-            return call_op
-        else:
-            return defr
+        if defr is _N or defr is None: return call_op
+        else: return defr
 
     ct = isinstance(call_op, types.Callable)
     rt = isinstance(args, (types.BaseTuple, types.LiteralList))
 
     if ct:
-        if rt:
-            return lambda call_op, args=(), defr=None: call_op(*args)
+        if rt: return lambda call_op, args=(), defr=None: call_op(*args)
         return lambda call_op, args=(), defr=None: call_op(args)
     else:
-        if rt:
-            return lambda call_op, args=(), defr=None: call_op[0](*call_op[1:], *args)
+        if rt: return lambda call_op, args=(), defr=None: call_op[0](*call_op[1:], *args)
         return lambda call_op, args=(), defr=None: call_op[0](*call_op[1:], args)
 
 
@@ -825,8 +787,7 @@ def prim_info(dt: Any, field: int) -> Any:
     :param field: Field selector (see list above).
     :returns: The requested field value, or ``None``.
     """
-    if not hasattr(dt, "kind"):
-        dt = np.dtype(dt)
+    if not hasattr(dt, "kind"): dt = np.dtype(dt)
 
     match (dt.kind, field):
         # Integer & unsigned integer
@@ -852,7 +813,7 @@ def prim_info(dt: Any, field: int) -> Any:
         case ("c", 1):
             return complex(np.finfo(dt).max, np.finfo(dt).max)
         case ("c", 2):
-            return np.finfo(dt).eps
+            return np.finfo(dt).eps  # hmmm
         # Universal: byte size
         case (_, 3):
             return dt.itemsize
@@ -891,8 +852,7 @@ def placerange(r: np.ndarray, start: int = 0, step: int = 1) -> None:
     :param step: Step value.
     :returns: None.
     """
-    for i in range(r.shape[0]):
-        r[i] = start + i * step
+    for i in range(r.shape[0]): r[i] = start + i * step
 
 
 @rgi
@@ -927,13 +887,12 @@ def force_const(val: Any) -> Any:
 
 
 @ovs(force_const)
-def _force_const(val):
+def _force_const(val):  # pragma: no cover
     if isinstance(val, types.Literal):
         # tv=val.literal_value
         # print('const',tv)
         return lambda val: val
-    else:
-        return lambda val: nb.literally(val)
+    else: return lambda val: nb.literally(val)
 
 
 def run_py(func: Callable[..., Any], *args: Any, **kwargs: Any) -> Any:
@@ -945,8 +904,7 @@ def run_py(func: Callable[..., Any], *args: Any, **kwargs: Any) -> Any:
     :param kwargs: Variable named unordered kwargs.
     :returns: The function result.
     """
-    if hasattr(func, "py_func"):
-        func = func.py_func
+    if hasattr(func, "py_func"): func = func.py_func
 
     return func(*args, **kwargs)
 
@@ -969,8 +927,7 @@ def run_numba(func: Callable[..., Any], *args: Any, verbose: bool = False, **kwa
     try:
         return func(*args, **kwargs)
     except (nb_error.TypingError, nb_error.UnsupportedError):
-        if verbose:
-            print(f"Failed to run full-numba for {func.__name__}, attempting in python.")
+        if verbose: print(f"Failed to run full-numba for {func.__name__}, attempting in python.")
         return run_py(func, *args, **kwargs)
 
 
@@ -1004,19 +961,14 @@ def _ov_pl_factory(
     def _pstr(p):  # render *p* without annotations
         nonlocal lp
         base = p.name
-        if base in ("parallel", "pl"):
-            lp = base
-        if p.kind is p.VAR_POSITIONAL:
-            base = "*" + base
-        elif p.kind is p.VAR_KEYWORD:
-            base = "**" + base
-        if p.default is not inspect._empty:
-            base += "=" + repr(p.default)
+        if base in ("parallel", "pl"): lp = base
+        if p.kind is p.VAR_POSITIONAL: base = "*" + base
+        elif p.kind is p.VAR_KEYWORD: base = "**" + base
+        if p.default is not inspect._empty: base += "=" + repr(p.default)
         return base
 
     full_params = ", ".join(_pstr(p) for p in params)
-    if lp is None:
-        raise ValueError(f"Parallel overloads separator failed to find keyword for: def {ov_def.__name__}")
+    if lp is None: raise ValueError(f"Parallel overloads separator failed to find keyword for: def {ov_def.__name__}")
     call_args = ", ".join(p.name for p in params if p.name not in ("parallel", "pl"))
     lambda_paramlist = full_params
 
@@ -1071,146 +1023,116 @@ def ir_force_separate_pl(
 
 
 def l_1_0(x: np.ndarray | tuple[Any, ...], i1: int = 0) -> Any:
-    if isinstance(x, (np.ndarray, tuple)) and len(x) >= 1:
-        return x[i1]
+    if isinstance(x, (np.ndarray, tuple)) and len(x) >= 1: return x[i1]
     return x
 
 
 @ovsic(l_1_0)
-def _l_1_0(x, i1: int = 0):
+def _l_1_0(x, i1: int = 0):  # pragma: no cover
     # Same thing but d is manual, no literal cast so compilation can be a little quicker.
-    def _impl(x, i1: int = 0):
-        return x
+    def _impl(x, i1: int = 0): return x
 
     if isinstance(x, types.Array) and x.ndim >= 1:
 
-        def _impl(x, i1: int = 0):
-            return x[i1]
+        def _impl(x, i1: int = 0): return x[i1]
 
     return _impl
 
 
 def l_1_1(x: np.ndarray | tuple[Any, ...], i1: int = 0) -> Any:
-    if type(x) is np.ndarray and len(x.shape) >= 2:
-        return x[i1]
-    if isinstance(x, tuple) and len(x) >= 1 and isinstance(x[0], tuple):
-        return x[i1]
+    if type(x) is np.ndarray and len(x.shape) >= 2: return x[i1]
+    if isinstance(x, tuple) and len(x) >= 1 and isinstance(x[0], tuple): return x[i1]
     return x
 
 
 @ovsic(l_1_1)
-def _l_1_1(x, i1: int = 0):
-    def _impl(x, i1: int = 0):
-        return x
+def _l_1_1(x, i1: int = 0):  # pragma: no cover
+    def _impl(x, i1: int = 0): return x
 
     if isinstance(x, types.Array) and x.ndim >= 2:
 
-        def _impl(x, i1: int = 0):
-            return x[i1]
+        def _impl(x, i1: int = 0): return x[i1]
 
     return _impl
 
 
 def l_1_2(x: np.ndarray | tuple[Any, ...], i1: int = 0) -> Any:
-    if type(x) is np.ndarray and len(x.shape) >= 3:
-        return x[i1]
-    if isinstance(x, tuple) and len(x) >= 1 and isinstance(x[0], tuple) and isinstance(x[0][0], tuple):
-        return x[i1]
+    if type(x) is np.ndarray and len(x.shape) >= 3: return x[i1]
+    if isinstance(x, tuple) and len(x) >= 1 and isinstance(x[0], tuple) and isinstance(x[0][0], tuple): return x[i1]
     return x
 
 
 @ovsic(l_1_2)
-def _l_1_2(x, i1: int = 0):
-    def _impl(x, i1: int = 0):
-        return x
+def _l_1_2(x, i1: int = 0):  # pragma: no cover
+    def _impl(x, i1: int = 0): return x
 
     if isinstance(x, types.Array) and x.ndim >= 3:
 
-        def _impl(x, i1: int = 0):
-            return x[i1]
+        def _impl(x, i1: int = 0): return x[i1]
 
     return _impl
 
 
 def l_12_0(x: np.ndarray | tuple[Any, ...], i1: int = 0, i2: int = 0) -> Any:
     if type(x) is np.ndarray:
-        if len(x.shape) >= 2:
-            return x[i1, i2]
-        elif len(x.shape) == 1:
-            return x[i1]
+        if len(x.shape) >= 2: return x[i1, i2]
+        elif len(x.shape) == 1: return x[i1]
     if isinstance(x, tuple):
-        if len(x) >= 1 and isinstance(x[0], tuple):
-            return x[i1][i2]
-        elif len(x) == 1:
-            return x[i1]
+        if len(x) >= 1 and isinstance(x[0], tuple): return x[i1][i2]
+        elif len(x) == 1: return x[i1]
     return x
 
 
 @ovsic(l_12_0)
-def _l_12_0(x, i1: int = 0, i2: int = 0):
+def _l_12_0(x, i1: int = 0, i2: int = 0):  # pragma: no cover
     # Same thing but d is manual, no literal cast so compilation can be a little quicker.
-    def _impl(x, i1: int = 0, i2: int = 0):
-        return x
+    def _impl(x, i1: int = 0, i2: int = 0): return x
 
     if isinstance(x, types.Array):
         if x.ndim >= 2:
 
-            def _impl(x, i1: int = 0, i2: int = 0):
-                return x[i1, i2]
+            def _impl(x, i1: int = 0, i2: int = 0): return x[i1, i2]
         elif x.ndim == 1:
 
-            def _impl(x, i1: int = 0, i2: int = 0):
-                return x[i1]
+            def _impl(x, i1: int = 0, i2: int = 0): return x[i1]
 
     return _impl
 
 
 def l_21_0(x: np.ndarray | tuple[Any, ...], i1: int = 0, i2: int = 0) -> Any:
     if type(x) is np.ndarray:
-        if len(x.shape) >= 2:
-            return x[i1, i2]
-        elif len(x.shape) == 1:
-            return x[i2]
+        if len(x.shape) >= 2: return x[i1, i2]
+        elif len(x.shape) == 1: return x[i2]
     if isinstance(x, tuple):
-        if len(x) >= 1 and isinstance(x[0], tuple):
-            return x[i1][i2]
-        elif len(x) == 1:
-            return x[i2]
+        if len(x) >= 1 and isinstance(x[0], tuple): return x[i1][i2]
+        elif len(x) == 1: return x[i2]
     return x
 
 
 @ovsic(l_21_0)
-def _l_21_0(x, i1: int = 0, i2: int = 0):
+def _l_21_0(x, i1: int = 0, i2: int = 0):  # pragma: no cover
     # Same thing but d is manual, no literal cast so compilation can be a little quicker.
-    def _impl(x, i1: int = 0, i2: int = 0):
-        return x
+    def _impl(x, i1: int = 0, i2: int = 0): return x
 
     if isinstance(x, types.Array):
         if x.ndim >= 2:
 
-            def _impl(x, i1: int = 0, i2: int = 0):
-                return x[i1, i2]
+            def _impl(x, i1: int = 0, i2: int = 0): return x[i1, i2]
         elif x.ndim == 1:
 
-            def _impl(x, i1: int = 0, i2: int = 0):
-                return x[i2]
+            def _impl(x, i1: int = 0, i2: int = 0): return x[i2]
 
     return _impl
 
 
 def l_12_d(x: np.ndarray | tuple[Any, ...], i1: int = 0, i2: int = 0, d: int = 0) -> Any:
-    if isinstance(d, nb.types.Literal):
-        d = d.literal_value
+    if isinstance(d, nb.types.Literal): d = d.literal_value
     if type(x) is np.ndarray:
-        if len(x.shape) >= 2 + d:
-            return x[i1, i2]
-        elif len(x.shape) == 1 + d:
-            return x[i1]
+        if len(x.shape) >= 2 + d: return x[i1, i2]
+        elif len(x.shape) == 1 + d: return x[i1]
     if isinstance(x, tuple):
-        if d == 0 and len(x) >= 1 and isinstance(x[0], tuple):
-            return x[i1][i2]
-        elif d == 0 and len(x) == 1:
-            return x[i1]
+        if d == 0 and len(x) >= 1 and isinstance(x[0], tuple): return x[i1][i2]
+        elif d == 0 and len(x) == 1: return x[i1]
     return x
 
 
@@ -1218,26 +1140,21 @@ _verbs = False
 
 
 @ovsic(l_12_d)
-def _l_12_d(x, i1: int = 0, i2: int = 0, d: int = 0):
-    def _impl(x, i1: int = 0, i2: int = 0, d: int = 0):
-        return x
+def _l_12_d(x, i1: int = 0, i2: int = 0, d: int = 0):  # pragma: no cover
+    def _impl(x, i1: int = 0, i2: int = 0, d: int = 0): return x
 
     if isinstance(x, types.Array):
         if isinstance(d, (nb.types.Literal, int)):
             dv = d if isinstance(d, int) else d.literal_value
-            if _verbs:
-                print("d is ", dv)
+            if _verbs: print("d is ", dv)
             if x.ndim >= 2 + dv:
 
-                def _impl(x, i1: int = 0, i2: int = 0, d: int = 0):
-                    return x[i1, i2]
+                def _impl(x, i1: int = 0, i2: int = 0, d: int = 0): return x[i1, i2]
             elif x.ndim == 1 + dv:
 
-                def _impl(x, i1: int = 0, i2: int = 0, d: int = 0):
-                    return x[i1]
+                def _impl(x, i1: int = 0, i2: int = 0, d: int = 0): return x[i1]
 
             return _impl
-        if _verbs:
-            print("Requesting literal value for d")
+        if _verbs: print("Requesting literal value for d")
         return lambda x, i1=0, i2=0, d=0: nb.literally(d)
     return _impl

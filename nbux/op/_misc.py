@@ -173,8 +173,7 @@ def horner_eval(x: float, coefs: np.ndarray | tuple[float, ...]) -> float:
     :returns: Polynomial value.
     """
     v = coefs[0]
-    for c in nb.literal_unroll(coefs[1:]):
-        v = v * x + c
+    for c in nb.literal_unroll(coefs[1:]): v = v * x + c
     return v
 
 
@@ -191,8 +190,7 @@ def sqr_lh(out: np.ndarray) -> None:
     # Contiguous writes should be more efficient here.
     # test this later.
     for j in range(out.shape[0]):
-        for i in range(0, j):
-            out[j, i] = out[i, j]
+        for i in range(0, j): out[j, i] = out[i, j]
 
 
 @nbu.jtic
@@ -208,13 +206,12 @@ def sqr_uh(out: np.ndarray) -> None:
     # Contiguous writes should be more efficient here.
     # test this later.
     for j in range(out.shape[0]):
-        for i in range(j + 1, out.shape[0]):
-            out[j, i] = out[i, j]
+        for i in range(j + 1, out.shape[0]): out[j, i] = out[i, j]
 
 
 if BLAS_PACK:
 
-    def mmul_cself(
+    def mmul_cself(  # pragma: no cover
         a: np.ndarray,
         out: np.ndarray,
         a_mult: float = 1.0,
@@ -224,11 +221,11 @@ if BLAS_PACK:
     ) -> np.ndarray:
         return out  # to replaced after blas_lapack implementations are added.
 
-    def cholesky_fsolve_inplace(a: np.ndarray, b: np.ndarray, uplo: Any = LAPACK_UPPER) -> np.ndarray:
-        return b
+    def cholesky_fsolve_inplace(  # pragma: no cover
+        a: np.ndarray, b: np.ndarray, uplo: Any = LAPACK_UPPER
+    ) -> np.ndarray: return b
 
-    def potrs(L: np.ndarray, x: np.ndarray) -> np.ndarray:
-        return x
+    def potrs(L: np.ndarray, x: np.ndarray) -> np.ndarray: return x  # pragma: no cover
 
 else:
 
@@ -263,18 +260,13 @@ else:
         isc = at is np.complex64 or at is np.complex128
         if isc:
             ax = a.conj()
-            if a_mult != _1:
-                ax *= a_mult
-        elif a_mult != _1:  # np.dot will definitely copy if mem-address is the same, so might as well make our own copy
-            ax = a * a_mult
-        else:
-            ax = a
-        if outer:
-            a, ax = a, ax.T
-        else:
-            a, ax = a.T, ax
-        if rem_mult == _0:
-            np.dot(a, ax, out=out)
+            if a_mult != _1: ax *= a_mult
+        # np.dot will definitely copy if mem-address is the same, so might as well make our own copy
+        elif a_mult != _1: ax = a * a_mult
+        else: ax = a
+        if outer: a, ax = a, ax.T
+        else: a, ax = a.T, ax
+        if rem_mult == _0: np.dot(a, ax, out=out)
         else:
             ac = np.dot(a, ax)
             # dimensions should match so this is faster than multi-looping.
@@ -310,8 +302,7 @@ else:
         for i in range(n - 1, -1, -1):
             sum_val = _0
             # Dot product of col L[i+1:, i] (which is row i of L.T) and known x values
-            for j in range(i + 1, n):
-                sum_val += L[j, i] * x[j]  # Access L[j, i] for L.T
+            for j in range(i + 1, n): sum_val += L[j, i] * x[j]  # Access L[j, i] for L.T
             x[i] = (x[i] - sum_val) / L[i, i]
 
         return x
@@ -354,8 +345,7 @@ def grid_eval_exec(
     _mmx = np.empty((nt, 2), dtype=np.float32)
     _mmx[:, 0] = np.inf
     _mmx[:, 1] = -np.inf
-    for d in range(1, tot_dims):
-        _dc[d] = dim_pts**d
+    for d in range(1, tot_dims): _dc[d] = dim_pts**d
 
     ld = nb.set_parallel_chunksize(mt.ceil(tot_pts / nt))
     for i in nb.prange(0, tot_pts):
@@ -366,10 +356,8 @@ def grid_eval_exec(
             # Map the index to the actual coordinate in dimension `d`
             _cm[tid, d] = bounds[d * 2] + (idx / (dim_pts - 1)) * (bounds[d * 2 + 1] - bounds[d * 2])
         fitness[i] = eval_op[0](_cm[tid], *eval_op[1:])
-        if _mmx[tid, 0] > fitness[i]:
-            _mmx[tid, 0] = fitness[i]
-        elif _mmx[tid, 1] < fitness[i]:
-            _mmx[tid, 1] = fitness[i]
+        if _mmx[tid, 0] > fitness[i]: _mmx[tid, 0] = fitness[i]
+        elif _mmx[tid, 1] < fitness[i]: _mmx[tid, 1] = fitness[i]
     nb.set_parallel_chunksize(ld)
 
     mn = _mmx[:, 0].min()
@@ -392,6 +380,5 @@ def grid_eval(
     num_points = dim_pts**dims
     fitness = np.empty((num_points,), dtype=np.float32)
     fitness, mn, mx = grid_eval_exec(bounds, fitness, eval_op)
-    if return_with_dims:
-        fitness = fitness.reshape((dim_pts,) * dims)
+    if return_with_dims: fitness = fitness.reshape((dim_pts,) * dims)
     return fitness, mn, mx

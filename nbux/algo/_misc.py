@@ -33,16 +33,14 @@ def gershgorin_l1_norms(A: np.ndarray, t1: np.ndarray, t2: np.ndarray) -> tuple[
     n = A.shape[0]
     colsum = t1  # NOTE t1 needs to zeroed, assume user handles it
     diag = t2
-    for j in range(n):
-        diag[j] = A[j, j]
+    for j in range(n): diag[j] = A[j, j]
 
     # I don't parallelize at the outerloop as the gershgorin bounds are typically used for initial brackets
     # of some larger n^3 routine which will lead to calling into lapack, so less threading traffic will be better.
     # copy paste for parallel version.
     for i in range(n):
         # colsum for symmetric is same as row sum, and i indexing colsum sb faster.
-        for j in range(n):
-            colsum[i] += abs(A[i, j])
+        for j in range(n): colsum[i] += abs(A[i, j])
     # anorm
     an = opv.vmax(colsum)  # shortcut
     # for j in range(1, n):
@@ -50,8 +48,7 @@ def gershgorin_l1_norms(A: np.ndarray, t1: np.ndarray, t2: np.ndarray) -> tuple[
     #     if s > an:an = s
 
     rad = colsum
-    for j in range(n):
-        rad[j] -= abs(diag[j])
+    for j in range(n): rad[j] -= abs(diag[j])
 
     return an, diag, rad
 
@@ -102,14 +99,12 @@ def lars1_constraintsolve(
         lam = ctp(0.0)
         for i in range(m):
             bc = abs(C[i])
-            if lam < bc:
-                lam = bc
+            if lam < bc: lam = bc
         return lam
 
     _mf = ctp(nbu.prim_info(ctp, 1))
     tol = nbu.prim_info(ctp, 2) * 2.0
-    if l2cond == -1.0:
-        l2cond = tol * 64.0
+    if l2cond == -1.0: l2cond = tol * 64.0
     x = out  # size m
     np.dot(A.T, y, out=C)
 
@@ -137,8 +132,7 @@ def lars1_constraintsolve(
         # --- direction on active set
         Gt = T1[: atdx * atdx].reshape((atdx, atdx))
         S2 = T2[:atdx]
-        for i in range(atdx):
-            S2[i] = mt.copysign(1.0, C[idx_buf[i]])
+        for i in range(atdx): S2[i] = mt.copysign(1.0, C[idx_buf[i]])
         opi.mmul_cself(At[:atdx], Gt, sym=False, outer=True)  # At perm mem
         # if l2cond!=0.:
         # conditioner so cholesky shouldn't ever blow up.
@@ -150,8 +144,7 @@ def lars1_constraintsolve(
         # avoid dot heap temps in this path.
         Ast = T1[: atdx * n].reshape((n, atdx))
         for i in range(atdx):
-            for j in range(n):
-                Ast[j, i] = At[i, j]
+            for j in range(n): Ast[j, i] = At[i, j]
         # --- Solution instance relations
         a = np.dot(Ast, S2, out=T3)
         denr = np.dot(A.T, a, out=T1[-m:])  # this could be copying.. but shouldn't be as a is a vector.
@@ -180,8 +173,7 @@ def lars1_constraintsolve(
         # if nidx == -1: #theoretically it's not possible
         #     break
         # --- update x along S2
-        for i in range(atdx):
-            x[idx_buf[i]] += y_star * S2[i]
+        for i in range(atdx): x[idx_buf[i]] += y_star * S2[i]
 
         # --- refresh residual, correlations, λ
         r = np.dot(A, x, out=T3)
@@ -201,8 +193,7 @@ def lars1_constraintsolve(
         #           '||r||_2=', rn,
         #           'λ=', lam)
 
-        if atdx >= n or rn < eps or lam < tol:
-            break
+        if atdx >= n or rn < eps or lam < tol: break
 
         At[atdx] = A.T[nidx]
         idx_buf[atdx] = nidx
@@ -221,8 +212,7 @@ def lars1_memspec(
     buffer: np.ndarray | None = None,
 ) -> tuple[np.ndarray, ...]:
     # alignb is used to init arrays along instruction aligned memory blocks, avx512=64.
-    def cd_(x, dv):
-        return (x + dv - 1) // dv
+    def cd_(x, dv): return (x + dv - 1) // dv
 
     flt = nbu.prim_info(type_flt, 3)
 
@@ -231,8 +221,7 @@ def lars1_memspec(
     t9, t10, t11 = flt * t5, alignb * t8, cd_(t4, alignb)
     t12 = cd_(t9, alignb)
 
-    if buffer is None:
-        buffer = aligned_buffer(alignb * (t11 + t12 + t6 + t7 + 2 * t8 + cd_(sample_dims, alignb)), 4096)  # page align
+    if buffer is None: buffer = aligned_buffer(alignb * (t11 + t12 + t6 + t7 + 2 * t8 + cd_(sample_dims, alignb)), 4096)  # page align
 
     At = fb_(buffer[:t4], type_flt).reshape((sample_size, sample_size))
     buffer = buffer[alignb * t11 :]
@@ -287,8 +276,7 @@ def latin_hypercube_sample(
         # Create N equally spaced intervals [0, 1).
         # for compatibility with tuples [i][_s]
         # s[i]
-        for s in range(0, n_samples):
-            sample[s, i] = s * (bd[1] - bd[0]) / n_samples + bd[0]
+        for s in range(0, n_samples): sample[s, i] = s * (bd[1] - bd[0]) / n_samples + bd[0]
         durstenfeld_p_shuffle(sample[:, i])
         i += 1
 
@@ -311,8 +299,7 @@ def edge_sample(bounds: list[tuple[float, float]] | tuple[tuple[float, float], .
 
     # If only one dimension, sample directly along the interval.
     if dim == 1:
-        for val in np.linspace(bounds[0][0], bounds[0][1], num=num):
-            points.append([val])
+        for val in np.linspace(bounds[0][0], bounds[0][1], num=num): points.append([val])
     else:
         # For each dimension, sample along the free edge while fixing the others.
         for free_dim in range(dim):
@@ -321,8 +308,7 @@ def edge_sample(bounds: list[tuple[float, float]] | tuple[tuple[float, float], .
                 pt = [0.0] * dim
                 fixed_idx = 0
                 for d in range(dim):
-                    if d == free_dim:
-                        continue
+                    if d == free_dim: continue
                     # Set fixed value based on combination (0 for lower bound, 1 for upper bound)
                     pt[d] = bounds[d][fixed_combo[fixed_idx]]
                     fixed_idx += 1

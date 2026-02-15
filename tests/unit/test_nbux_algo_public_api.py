@@ -64,13 +64,19 @@ def test_algo_exports_and_bisection_brent_public_paths() -> None:
     for name in nbux.algo.__all__:
         assert hasattr(nbux.algo, name)
 
-    def step(x: float) -> float:
+    def step_right_zero(x: float) -> float:
         return 0.0 if x >= 0.75 else -1.0
 
-    edge = float(nbux.algo.not0_bisect(step, 0.0, 1.0, max_iters=40, side=1))
+    edge = float(nbux.algo.not0_bisect(step_right_zero, 0.0, 1.0, max_iters=40, side=1))
     assert 0.0 <= edge <= 0.75
 
-    lo, hi = nbux.algo.root_bisect(lambda x: 0.0 if x >= 1.25 else -1.0, 0.0, 2.0, max_iters=80)
+    def step_left_zero(x: float) -> float:
+        return 0.0 if x <= 0.75 else 1.0
+
+    edge_r = float(nbux.algo.not0_bisect(step_left_zero, 0.0, 1.0, max_iters=40, side=-1))
+    assert 0.75 <= edge_r <= 1.0
+
+    lo, hi = nbux.algo.root_bisect(lambda x: x - 1.25, 0.0, 2.0, max_iters=80)
     assert lo <= 1.25 <= hi
     assert hi - lo < 5e-6
 

@@ -5,8 +5,6 @@ import matplotlib.pyplot as plt
 import numpy as np
 from scipy.stats import t as tdist  # for t-distribution critical value
 
-from routines import grid_eval
-
 
 def time_funcs(callables, names, reset_call,
                compile_run=10_000,

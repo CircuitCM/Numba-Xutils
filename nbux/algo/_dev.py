@@ -9,7 +9,7 @@ import nbux.op.vector as opv
 import nbux.utils as nbu
 
 
-def lars1_constraintsolve_dev(
+def lars1_constraintsolve_dev(  # pragma: no cover
     A: np.ndarray,
     y: np.ndarray,
     out: np.ndarray,
@@ -75,15 +75,12 @@ def lars1_constraintsolve_dev(
     m, n = A.shape
     if mxitrs == -1:
         if dim_max < m:
-            mxitrs = (
-                m * 0.8
-            )  # (.5**.5) #absolutely zero idea why this is v good stop for memory defficient solvers. even if m>n
+            mxitrs = m * 0.8
+            # (.5**.5) #absolutely zero idea why this is v good stop for memory defficient solvers. even if m>n
             # if it goes >n-1 it explodes so...
-        else:
-            mxitrs = max(m, dim_max)
+        else: mxitrs = max(m, dim_max)
     tol = nbu.prim_info(ctp, 2) * 2.0
-    if l2cond == -1.0:
-        l2cond = tol * 64.0
+    if l2cond == -1.0: l2cond = tol * 64.0
     x = out  # size n
     # x[:]=0. ASSUME USER SETS TO ZEROS
     np.dot(A.T, y, out=C)
@@ -92,8 +89,7 @@ def lars1_constraintsolve_dev(
         lam = ctp(0.0)
         for i in range(n):
             bc = abs(C[i])
-            if lam < bc:
-                lam = bc
+            if lam < bc: lam = bc
         return lam
 
     lam = maxabs_c()
@@ -122,8 +118,7 @@ def lars1_constraintsolve_dev(
         # --- direction on active set
         Gt = T1[: atdx * atdx].reshape((atdx, atdx))
         S2 = T2[:atdx]
-        for i in range(atdx):
-            S2[i] = mt.copysign(1.0, C[idx_buf[i]])
+        for i in range(atdx): S2[i] = mt.copysign(1.0, C[idx_buf[i]])
         # T2 occupied.
         # print(idx_buf)
         # print('As',At[:atdx])
@@ -145,8 +140,7 @@ def lars1_constraintsolve_dev(
         # Copying into T1 avoids heap temp allocation in this dot path.
         Ast = T1[: atdx * m].reshape((m, atdx))
         for i in range(atdx):
-            for j in range(m):
-                Ast[j, i] = At[i, j]
+            for j in range(m): Ast[j, i] = At[i, j]
         # T1 occupied.
         v = np.dot(Ast, S2, out=T3)  # v : T3 size m
         # T3 occupied.
@@ -177,10 +171,8 @@ def lars1_constraintsolve_dev(
         # C free.
         # T1 free.
         # --- update x along S2
-        if nidx == -1:
-            y_star = tol
-        for i in range(atdx):
-            x[idx_buf[i]] += y_star * S2[i]
+        if nidx == -1: y_star = tol
+        for i in range(atdx): x[idx_buf[i]] += y_star * S2[i]
         # T2 free.
 
         # if nidx!=-1:
@@ -203,11 +195,9 @@ def lars1_constraintsolve_dev(
         lam = maxabs_c()
         ctrs += 1
 
-        if verbose:
-            print(ctrs, "|I|=", atdx, "γ=", y_star, "idx=", nidx, "||r||_2=", rn, "λ=", lam)
+        if verbose: print(ctrs, "|I|=", atdx, "γ=", y_star, "idx=", nidx, "||r||_2=", rn, "λ=", lam)
 
-        if ctrs >= mxitrs or rn < eps or lam < tol:
-            break
+        if ctrs >= mxitrs or rn < eps or lam < tol: break
         elif atdx >= dim_max and nidx != -1:
             # sort of failed experiment, if you need significantly more samples than necessary for expected sparsity
             # this can reduce mem requirements by at most 50%.
@@ -234,8 +224,7 @@ def lars1_constraintsolve_dev(
             atdx += 1
             Ib[nidx] = True
             # print(A.T[nidx],nidx)
-        else:
-            print("NIDX negative")  # shouldnt be able to get here under normal conditions.
+        else: print("NIDX negative")  # shouldnt be able to get here under normal conditions.
 
         # if atdx>2:
         #     break

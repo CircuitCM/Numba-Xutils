@@ -3,6 +3,7 @@ from __future__ import annotations
 import numpy as np
 
 import nbux
+import nbux._sort as nbux_sort
 from tests.numba_layers import iter_function_layers
 
 
@@ -10,8 +11,7 @@ def test_nbux_root_exports_and_aliases() -> None:
     """Validate root-level exports and module aliases in the public API."""
     for name in nbux.__all__:
         assert hasattr(nbux, name)
-    assert nbux.vops is nbux.op.vector
-    assert nbux.sort is not None
+    assert nbux.vector is nbux.op.vector
     assert nbux.algo is not None
     assert nbux.rng is not None
     assert nbux.utils is not None
@@ -51,5 +51,5 @@ def test_public_sort_dispatchers_cover_insert_and_merge_paths() -> None:
         layer_fn(idx, values, ws_idx.copy())
         np.testing.assert_allclose(values[idx], asc)
 
-    # Reach sort module alias dependent routine as part of public module usage.
-    assert int(nbux.sort.binary_argsearch(np.array([-2.0, -1.0, 0.0, 4.0]), 1.5)) == 3
+    # Reach sorted search routine through the underlying sort module.
+    assert int(nbux_sort.binary_argsearch(np.array([-2.0, -1.0, 0.0, 4.0]), 1.5)) == 3

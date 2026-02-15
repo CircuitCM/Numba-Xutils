@@ -77,8 +77,7 @@ def normal_rng_protect(mu: float = 0.0, sig: float = 1.0, pr: float = 0.001) -> 
     """
     n = rand.gauss(mu, sig)
     sr = sig * pr
-    if abs(n) < sr:
-        return mt.copysign(sr, n)
+    if abs(n) < sr: return mt.copysign(sr, n)
     return n
 
 
@@ -110,8 +109,7 @@ def normal_rng_protect(mu: float = 0.0, sig: float = 1.0, pr: float = 0.001) -> 
 @nbu.jtic
 def _place_gauss_s(a: np.ndarray, mu: float = 0.0, sig: float = 0.0) -> None:
     itrs, ptr = nbu.buffer_nelems_andp(a)
-    for i in range(itrs):
-        ptr[i] = rand.gauss(mu, sig)
+    for i in range(itrs): ptr[i] = rand.gauss(mu, sig)
 
 
 @nbu.jtpc
@@ -119,11 +117,10 @@ def _place_gauss_pl(
     a: np.ndarray,
     mu: float = 0.0,
     sig: float = 0.0,
-) -> None:
+) -> None:  # pragma: no cover
     itrs, ptr = nbu.buffer_nelems_andp(a)
     # ld = nb.set_parallel_chunksize(mt.ceil(v.size / nb.get_num_threads()))
-    for i in nb.prange(itrs):
-        ptr[i] = rand.gauss(mu, sig)
+    for i in nb.prange(itrs): ptr[i] = rand.gauss(mu, sig)
     # nb.set_parallel_chunksize(ld)
 
 
@@ -139,30 +136,26 @@ def place_gauss(a: np.ndarray, mu: float = 0.0, sigma: float = 1.0, parallel: bo
     :param parallel: Use parallel implementation when true.
     :returns: None.
     """
-    if parallel:
-        _place_gauss_pl(a, mu, sigma)
-    else:
-        _place_gauss_s(a, mu, sigma)
+    if parallel: _place_gauss_pl(a, mu, sigma)
+    else: _place_gauss_s(a, mu, sigma)
 
 
 # EXAMPLES
 @nbu.jtc  # doesn't work, both the parallel and sync functions still compiled in. Seen in byte code.
 def _place_gauss(v: np.ndarray, mu: float = 0.0, sigma: float = 1.0, parallel: bool = False) -> None:
-    if nbu.force_const(parallel):
-        _place_gauss_pl(v, mu, sigma)
-    else:
-        _place_gauss_s(v, mu, sigma)
+    if nbu.force_const(parallel): _place_gauss_pl(v, mu, sigma)
+    else: _place_gauss_s(v, mu, sigma)
 
 
 @nbu.jtpc_s
-def _2place_gauss(a, mu: float = 0.0, sigma: float = 1.0, parallel: bool = False) -> None:
+def _2place_gauss(a, mu: float = 0.0, sigma: float = 1.0, parallel: bool = False) -> None:  # pragma: no cover
     # because of the overhead of the literal value request even after jitting, there is an extra ~80 ms calling
     # this from the python interpreter, so use place_gauss python-mode for py_func calls.
     place_gauss(a, mu, sigma, parallel)  # already compiled
 
 
 @nbu.jtc
-def _place_gauss_pl1(a, mu: float = 0.0, sigma: float = 1.0) -> None:
+def _place_gauss_pl1(a, mu: float = 0.0, sigma: float = 1.0) -> None:  # pragma: no cover
     # makes it just as quick as original. No 80ms overhead after const is cached inside.
     place_gauss(a, mu, sigma, True)
 
@@ -184,16 +177,14 @@ def _random_orthogonals(a: np.ndarray, ortho_mem: tuple[np.ndarray, ...], parall
 def place_uniform_s(a: np.ndarray, low: float = -(3.0**0.5), high: float = 3.0**0.5) -> None:
     """Synchronously fill ``a`` in-place with uniform samples on ``[low, high]``."""
     itrs, ptr = nbu.buffer_nelems_andp(a)
-    for i in range(itrs):
-        ptr[i] = rand.uniform(low, high)
+    for i in range(itrs): ptr[i] = rand.uniform(low, high)
 
 
 @nbu.jtpc
-def place_uniform_pl(a: np.ndarray, low: float = -(3.0**0.5), high: float = 3.0**0.5) -> None:
+def place_uniform_pl(a: np.ndarray, low: float = -(3.0**0.5), high: float = 3.0**0.5) -> None:  # pragma: no cover
     """Parallel fill of ``a`` in-place with uniform samples on ``[low, high]``."""
     itrs, ptr = nbu.buffer_nelems_andp(a)
-    for i in nb.prange(itrs):
-        ptr[i] = rand.uniform(low, high)
+    for i in nb.prange(itrs): ptr[i] = rand.uniform(low, high)
 
 
 # A method I devised to force implementations to actually not include the compilation for the excluded bool method
@@ -213,25 +204,21 @@ def place_uniform(
     :param parallel: Use parallel implementation when true.
     :returns: None.
     """
-    if parallel:
-        place_uniform_pl(a, low, high)
-    else:
-        place_uniform_s(a, low, high)
+    if parallel: place_uniform_pl(a, low, high)
+    else: place_uniform_s(a, low, high)
 
 
 ### Rademacher.
 @nbu.jtic
 def _place_rademacher_s(a: np.ndarray, low: float = -1.0, high: float = 1.0) -> None:
     itrs, ptr = nbu.buffer_nelems_andp(a)
-    for i in range(itrs):
-        ptr[i] = scaled_rademacher_rng(low, high)
+    for i in range(itrs): ptr[i] = scaled_rademacher_rng(low, high)
 
 
 @nbu.jtpc
-def _place_rademacher_pl(a: np.ndarray, low: float = -1.0, high: float = 1.0) -> None:
+def _place_rademacher_pl(a: np.ndarray, low: float = -1.0, high: float = 1.0) -> None:  # pragma: no cover
     itrs, ptr = nbu.buffer_nelems_andp(a)
-    for i in range(itrs):
-        ptr[i] = scaled_rademacher_rng(low, high)
+    for i in range(itrs): ptr[i] = scaled_rademacher_rng(low, high)
 
 
 @nbu.ir_force_separate_pl(_place_rademacher_s, _place_rademacher_pl)
@@ -245,7 +232,5 @@ def place_rademacher(a: np.ndarray, low: float = -1.0, high: float = 1.0, parall
     :param parallel: Use parallel implementation when true.
     :returns: None.
     """
-    if parallel:
-        _place_rademacher_pl(a, low, high)
-    else:
-        _place_rademacher_s(a, low, high)
+    if parallel: _place_rademacher_pl(a, low, high)
+    else: _place_rademacher_s(a, low, high)

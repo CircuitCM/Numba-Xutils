@@ -46,15 +46,13 @@ def not0_bisect(f_op: Op, lo: float, hi: float, max_iters: int = 200, side: int 
     while ict > 0:
         f = nbu.op_call_args(f_op, lam)
         if side == 1:
-            if f == _0:
-                hi = lam
-            else:
-                lo = lam
+            # side=1: return the last point before entering the zero/non-negative side.
+            if f >= _0: hi = lam
+            else: lo = lam
         else:
-            if f == _0:
-                lo = lam
-            else:
-                hi = lam
+            # side=-1: roles reversed, return the first point before leaving zero/non-positive side.
+            if f <= _0: lo = lam
+            else: hi = lam
         lam = 0.5 * (lo + hi)
         ict -= 1
     return lo if side == 1 else hi
@@ -78,16 +76,28 @@ def root_bisect(
     ict = np.int64(max_iters)
     lam = 0.5 * (lo + hi)
     _0 = typ(0)
+    flo = nbu.op_call_args(f_op, lo)
+    fhi = nbu.op_call_args(f_op, hi)
+    asc = flo <= fhi
     while ict > 0:
         f = nbu.op_call_args(f_op, lam)
-        if f == _0:
-            hi = lam
+        if asc:
+            if f >= _0:
+                hi = lam
+                fhi = f
+            else:
+                lo = lam
+                flo = f
         else:
-            lo = lam
+            if f <= _0:
+                hi = lam
+                fhi = f
+            else:
+                lo = lam
+                flo = f
         plam = lam
         lam = 0.5 * (lo + hi)
-        if abs(plam - lam) < er_tol:
-            break  # should know exactly where and when it stops, so no need to send a reason.
+        if abs(plam - lam) < er_tol: break  # should know exactly where and when it stops, so no need to send a reason.
         ict -= 1
     return lo, hi
 
@@ -128,22 +138,17 @@ def _bracketed_newton(fd_op, lo, hi, er_tol: float = 1e-14, max_iters: int = 20,
         # injects lam as first function argument.
         f, fp = nbu.op_call_args(fd_op, lam)
         # f=mt.copysign(f,sign)
-        if mt.copysign(f, sign) > 0:
-            hi = lam
-        else:
-            lo = lam
+        if mt.copysign(f, sign) > 0: hi = lam
+        else: lo = lam
 
         plam = lam
         # Newton proposal from current lam
-        if -1e-24 < fp < 1e-24:
-            lam = 0.5 * (lo + hi)
+        if -1e-24 < fp < 1e-24: lam = 0.5 * (lo + hi)
         else:
             lam = lam - f / fp  # I think we need f and fp to change signs which ends up not changing them..
-            if not (lo < lam < hi):
-                lam = 0.5 * (lo + hi)
+            if not (lo < lam < hi): lam = 0.5 * (lo + hi)
 
-        if abs(plam - lam) < er_tol:
-            break
+        if abs(plam - lam) < er_tol: break
 
         ict -= 1
 
@@ -187,8 +192,7 @@ def _bracketed_secant(f_op, lo, hi, er_tol: float = 1e-14, max_iters: int = 20, 
             hi,
             lo,
         )  # root with negative slope target should use left most point to start in case right is ambiguous
-    else:
-        lamo, lam = lo, hi
+    else: lamo, lam = lo, hi
     ict = np.int64(max_iters)
     while ict > 0:
         fd = f - fo
@@ -196,22 +200,17 @@ def _bracketed_secant(f_op, lo, hi, er_tol: float = 1e-14, max_iters: int = 20, 
         lamn = lam - f * (lam - lamo) / fd
         lamo = lam
         lam = lamn
-        if not (lo < lam < hi):
-            lam = 0.5 * (lo + hi)
+        if not (lo < lam < hi): lam = 0.5 * (lo + hi)
 
-        if abs(lamo - lam) < er_tol:
-            break
+        if abs(lamo - lam) < er_tol: break
 
         # `f_op` can be a function or tuple(callable, *args). op_call_args
         # injects lam first, and sign remains compile-time branchable.
         f = nbu.op_call_args(f_op, lam)
-        if sign == -1:
-            f = -f
+        if sign == -1: f = -f
 
-        if f > 0.0:
-            hi = lam
-        else:
-            lo = lam
+        if f > 0.0: hi = lam
+        else: lo = lam
 
         ict -= 1
 
@@ -296,16 +295,13 @@ def signedroot_secant(
         0 Success. 1 Failed to converge. 2 No opposite bound located.
     """
 
-    if dtyp is None:
-        dtyp = nbu.type_ref(lo)  # which will default to f64 unless dtyp is specified
-    if br_tol is None:
-        br_tol = nbu.prim_info(dtyp, 2) ** (2 / 3)
-    if er_tol is None:
-        er_tol = nbu.prim_info(dtyp, 2) ** (1 / 2)
+    if dtyp is None: dtyp = nbu.type_ref(lo)  # which will default to f64 unless dtyp is specified
+    if br_tol is None: br_tol = nbu.prim_info(dtyp, 2) ** (2 / 3)
+    if er_tol is None: er_tol = nbu.prim_info(dtyp, 2) ** (1 / 2)
     br_rate, lo, hi, er_tol, br_tol = dtyp(br_rate), dtyp(lo), dtyp(hi), dtyp(er_tol), dtyp(br_tol)
     _1 = dtyp(1.0)
     _0 = dtyp(0.0)
-    sign = nbu.force_const(sign)  # this will cause a recompilation every time a different sign from previous is called.
+    #sign = nbu.force_const(sign)  # this will cause a recompilation every time a different sign from previous is called.
     flo, fhi = nbu.op_call_args(f_op, lo), nbu.op_call_args(f_op, hi)
     if sign == -1:
         op_bracket = (fhi < _0) or eager
@@ -354,8 +350,7 @@ def signedroot_secant(
             # if lamn is in bounds then we skip the next two branches
             # otherwise it failed we enter next nd block
             nd = not (ll < lamn < lh)
-        else:
-            nd = True
+        else: nd = True
         if nd and fallb:
             # print('Called secant fallback',ict,lamn,lam,lo,hi)
             # we check secant on the fallback bracket, succeeds then next
@@ -368,8 +363,7 @@ def signedroot_secant(
         if nd:
             # print('Called bracket fallback',ict,lamn,lam,lo,hi)
             # final fallback after both secant points fail. either by imprecision or bounds.
-            if _k:
-                lamb = lo * lrt + hi * hrt
+            if _k: lamb = lo * lrt + hi * hrt
             lamn = lamb
         lamo = lam
         fo = f
@@ -387,8 +381,7 @@ def signedroot_secant(
             lo = lam
             flo = f
 
-        if abs(lamo - lam) < er_tol:
-            break
+        if abs(lamo - lam) < er_tol: break
 
     # 2 is no lower bracket found, 1 failed to converge in time, 0 success
     return lam, lo, hi, 2 if not op_bracket else 1 if ict == 0 else 0
@@ -464,18 +457,15 @@ def signedroot_quadinterp(
     :param dtyp: Scalar dtype for computations.
     :returns: See ``signedroot_secant``.
     """
-    if dtyp is None:
-        dtyp = nbu.type_ref(lo)  # which will default to f64 unless dtyp is specified
-    if br_tol is None:
-        br_tol = nbu.prim_info(dtyp, 2) ** (2 / 3)
-    if er_tol is None:
-        er_tol = nbu.prim_info(dtyp, 2) ** (1 / 2)
+    if dtyp is None: dtyp = nbu.type_ref(lo)  # which will default to f64 unless dtyp is specified
+    if br_tol is None: br_tol = nbu.prim_info(dtyp, 2) ** (2 / 3)
+    if er_tol is None: er_tol = nbu.prim_info(dtyp, 2) ** (1 / 2)
     br_rate, lo, hi, er_tol, br_tol, signf = dtyp(br_rate), dtyp(lo), dtyp(hi), dtyp(er_tol), dtyp(br_tol), dtyp(sign)
     _1 = dtyp(1.0)
     _2 = dtyp(2.0)
     _4 = dtyp(4.0)
     _0 = dtyp(0.0)
-    sign = nbu.force_const(sign)  # this causes recompilation when sign differs from prior compiled calls.
+    #sign = nbu.force_const(sign)  # this causes recompilation when sign differs from prior compiled calls.
     flo, fhi = nbu.op_call_args(f_op, lo), nbu.op_call_args(f_op, hi)
     if sign == -1:
         op_bracket = (fhi < _0) or eager
@@ -502,12 +492,9 @@ def signedroot_quadinterp(
         if not op_bracket:
             lamb = lo * lrt + hi * hrt
             ll, lh = (lo, lamb) if sign == -1 else (lamb, hi)
-            if not (ll < lamn < lh):
-                lamn = lamb
-        elif not (lo < lamn < hi):
-            lamn = lo * lrt + hi * hrt
-    else:
-        lamn = lo * lrt + hi * hrt
+            if not (ll < lamn < lh): lamn = lamb
+        elif not (lo < lamn < hi): lamn = lo * lrt + hi * hrt
+    else: lamn = lo * lrt + hi * hrt
 
     lamo = lam
     fo = f
@@ -537,12 +524,9 @@ def signedroot_quadinterp(
             if not op_bracket:
                 lamb = lo * lrt + hi * hrt
                 ll, lh = (lo, lamb) if sign == -1 else (lamb, hi)
-                if not (ll < lamn < lh):
-                    lamn = lamb
-            elif not (lo < lamn < hi):
-                lamn = lo * lrt + hi * hrt
-        else:
-            lamn = lo * lrt + hi * hrt
+                if not (ll < lamn < lh): lamn = lamb
+            elif not (lo < lamn < hi): lamn = lo * lrt + hi * hrt
+        else: lamn = lo * lrt + hi * hrt
 
         lamo = lam
         fo = f
@@ -560,8 +544,7 @@ def signedroot_quadinterp(
             lo = lam
             flo = f
 
-        if abs(lamo - lam) < er_tol:
-            break
+        if abs(lamo - lam) < er_tol: break
 
     # 2 is no lower bracket found, 1 failed to converge in time, 0 success
     return lam, lo, hi, 2 if not op_bracket else 1 if ict == 0 else 0
@@ -616,16 +599,13 @@ def signedroot_newton(
     :param dtyp: Scalar dtype for computations.
     :returns: ``(root, lo, hi, status)`` (see return statement for status codes).
     """
-    if dtyp is None:
-        dtyp = nbu.type_ref(lo)  # which will default to f64 unless dtyp is specified
-    if br_tol is None:
-        br_tol = nbu.prim_info(dtyp, 2) ** (2 / 3)
-    if er_tol is None:
-        er_tol = nbu.prim_info(dtyp, 2) ** (1 / 2)
+    if dtyp is None: dtyp = nbu.type_ref(lo)  # which will default to f64 unless dtyp is specified
+    if br_tol is None: br_tol = nbu.prim_info(dtyp, 2) ** (2 / 3)
+    if er_tol is None: er_tol = nbu.prim_info(dtyp, 2) ** (1 / 2)
     br_rate, lo, hi, er_tol, br_tol = dtyp(br_rate), dtyp(lo), dtyp(hi), dtyp(er_tol), dtyp(br_tol)
     _1 = dtyp(1.0)
     _0 = dtyp(0.0)
-    sign = nbu.force_const(sign)
+    # sign = nbu.force_const(sign)
     # Bias parameters mirror your secant version.
     if sign == 1:
         # Known side is right/hi (positive), eagerness toward the left.
@@ -647,23 +627,20 @@ def signedroot_newton(
     while ict > 0:
         # Proposed Newton step
         lamo = lam
-        if abs(g) < (br_tol * abs(f) if rel_err else br_tol):
-            lam = lo * lrt + hi * hrt
+        if abs(g) < (br_tol * abs(f) if rel_err else br_tol): lam = lo * lrt + hi * hrt
         else:
             lam = lam - f / g
             lamb = lo * lrt + hi * hrt
 
             # Define admissible region
             ll, lh = ((lamb, hi) if sign == 1 else (lo, lamb)) if not op_bracket else (lo, hi)
-            if not (ll < lam < lh):
-                lam = lamb
+            if not (ll < lam < lh): lam = lamb
 
         g = nbu.op_call_args(g_op, lam)
         f = nbu.op_call_args(f_op, lam)
 
         # Bracket update
-        if f > _0 if sign == 1 else f < _0:
-            hi = lam
+        if f > _0 if sign == 1 else f < _0: hi = lam
         else:
             op_bracket = True
             lo = lam
@@ -671,8 +648,7 @@ def signedroot_newton(
         ict -= 1
 
         # Termination on step size, consistent with your secant version.
-        if abs(lamo - lam) < er_tol:
-            break
+        if abs(lamo - lam) < er_tol: break
 
     # Status: 0 on step-based convergence, 1 on iteration exhaustion, 2 failed to find opposite sign position.
     return lam, lo, hi, 2 if not op_bracket else 1 if ict == 0 else 0
@@ -730,12 +706,9 @@ def signseeking_halley(
     :param dtyp: Scalar dtype for computations.
     :returns: ``(root, lo, hi, status)`` (see return statement for status codes).
     """
-    if dtyp is None:
-        dtyp = nbu.type_ref(lo)  # which will default to f64 unless dtyp is specified
-    if br_tol is None:
-        br_tol = nbu.prim_info(dtyp, 2)  # **(2/3)
-    if er_tol is None:
-        er_tol = nbu.prim_info(dtyp, 2) ** (1 / 2)
+    if dtyp is None: dtyp = nbu.type_ref(lo)  # which will default to f64 unless dtyp is specified
+    if br_tol is None: br_tol = nbu.prim_info(dtyp, 2)  # **(2/3)
+    if er_tol is None: er_tol = nbu.prim_info(dtyp, 2) ** (1 / 2)
     br_rate, lo, hi, er_tol, br_tol = dtyp(br_rate), dtyp(lo), dtyp(hi), dtyp(er_tol), dtyp(br_tol)
     _1 = dtyp(1.0)
     _2 = dtyp(2.0)
@@ -764,24 +737,21 @@ def signseeking_halley(
         # Proposed Halley step
         lamo = lam
         denom = g * g - _05 * f * c
-        if abs(denom) < (br_tol * abs(f) if rel_err else br_tol):
-            lam = lo * lrt + hi * hrt
+        if abs(denom) < (br_tol * abs(f) if rel_err else br_tol): lam = lo * lrt + hi * hrt
         else:
             lam = lam - f * g / denom  # see that if c~0 we get the newton update.
             lamb = lo * lrt + hi * hrt
 
             # Define admissible region
             ll, lh = ((lamb, hi) if sign == 1 else (lo, lamb)) if not op_bracket else (lo, hi)
-            if not (ll < lam < lh):
-                lam = lamb
+            if not (ll < lam < lh): lam = lamb
 
         f = nbu.op_call_args(f_op, lam)
         g = nbu.op_call_args(g_op, lam)
         c = nbu.op_call_args(c_op, lam)
 
         # Bracket update
-        if f > _0 if sign == 1 else f < _0:
-            hi = lam
+        if f > _0 if sign == 1 else f < _0: hi = lam
         else:
             op_bracket = True
             lo = lam
@@ -789,8 +759,7 @@ def signseeking_halley(
         ict -= 1
 
         # Termination on step size which is the best proxy for achievable convergence.
-        if abs(lamo - lam) < er_tol:
-            break
+        if abs(lamo - lam) < er_tol: break
 
     # Status: 0 on step-based convergence, 1 on iteration exhaustion, 2 failed to find opposite sign position.
     return lam, lo, hi, 2 if not op_bracket else 1 if ict == 0 else 0
@@ -856,8 +825,7 @@ def brents_method(f_op: Op, lo: float, hi: float, er_tol: float = 1e-12, max_ite
         if use_bisection:
             s = 0.5 * (a + b)
             mflag = True
-        else:
-            mflag = False
+        else: mflag = False
 
         fs = nbu.op_call_args(f_op, s)
 
@@ -880,8 +848,7 @@ def brents_method(f_op: Op, lo: float, hi: float, er_tol: float = 1e-12, max_ite
 
         it += 1
 
-        if abs(a - b) < er_tol:
-            break
+        if abs(a - b) < er_tol: break
 
         ict -= 1
 

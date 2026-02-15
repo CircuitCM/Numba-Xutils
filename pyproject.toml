@@ -47,7 +47,7 @@ line-length = 120
 
 [tool.ruff.lint]
 select = ["I", "E4", "E5", "E7", "E9", "F", "B", "Q", "FA"]
-ignore = ["E701", "Q000", "Q001"]
+ignore = ["E701","E731", "Q000", "Q001"]
 
 [tool.ruff.lint.isort]
 force-single-line = false

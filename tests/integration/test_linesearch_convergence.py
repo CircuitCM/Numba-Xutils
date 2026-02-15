@@ -109,6 +109,14 @@ def _fmt_float(v: float) -> str:
     return f"{v:.12e}"
 
 
+def _fmt_log2(v: float) -> str:
+    if np.isnan(v):
+        return "nan"
+    if np.isinf(v):
+        return "-inf" if v < 0 else "inf"
+    return f"{v:.2f}"
+
+
 def _build_markdown(
     test_name: str,
     layer: str,
@@ -144,7 +152,7 @@ def _build_markdown(
     ]
     for i in range(xs.size):
         lines.append(
-            f"| {i} | {_fmt_float(xs[i])} | {_fmt_float(ys[i])} | {_fmt_float(log_abs[i])} | {_fmt_float(step_dx[i])} |"
+            f"| {i} | {_fmt_float(xs[i])} | {_fmt_float(ys[i])} | {_fmt_log2(log_abs[i])} | {_fmt_float(step_dx[i])} |"
         )
     return "\n".join(lines) + "\n"
 

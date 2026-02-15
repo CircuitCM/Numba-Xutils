@@ -79,8 +79,7 @@ def dot(x: np.ndarray, y: np.ndarray) -> float:
     r"""Vector dot product: $v \leftarrow x^T y$"""
     n = x.shape[0]
     s = nbu.type_ref(x)(0.0)
-    for i in range(n):
-        s += x[i] * y[i]
+    for i in range(n): s += x[i] * y[i]
     return s
 
 
@@ -89,8 +88,7 @@ def ndot(x: np.ndarray, y: np.ndarray) -> float:
     r"""Vector negate dot product: $v \leftarrow - x^T y$"""
     n = x.shape[0]
     s = nbu.type_ref(x)(0.0)
-    for i in range(n):
-        s -= x[i] * y[i]
+    for i in range(n): s -= x[i] * y[i]
     return s
 
 
@@ -99,8 +97,7 @@ def doti(x: np.ndarray) -> float:
     r"""Vector dot product with itself: $v \leftarrow x^T x$"""
     n = x.shape[0]
     s = nbu.type_ref(x)(0.0)
-    for i in range(n):
-        s += x[i] * x[i]
+    for i in range(n): s += x[i] * x[i]
     return s
 
 
@@ -126,8 +123,7 @@ def l2nm(x: np.ndarray) -> float:
 def cxy(x: np.ndarray, y: np.ndarray) -> np.ndarray:
     r"""`x = y`, $x := y$."""
     n = y.shape[0]
-    for i in range(n):
-        x[i] = y[i]
+    for i in range(n): x[i] = y[i]
     return x
 
 
@@ -135,8 +131,7 @@ def cxy(x: np.ndarray, y: np.ndarray) -> np.ndarray:
 def nxy(x: np.ndarray, y: np.ndarray) -> np.ndarray:
     r"""`x = -y`, $x := -y$."""
     n = y.shape[0]
-    for i in range(n):
-        x[i] = -y[i]
+    for i in range(n): x[i] = -y[i]
     return x
 
 
@@ -144,8 +139,7 @@ def nxy(x: np.ndarray, y: np.ndarray) -> np.ndarray:
 def nx(x: np.ndarray) -> np.ndarray:
     r"""`x = -x`, $x := -x$."""
     n = x.shape[0]
-    for i in range(n):
-        x[i] = -x[i]
+    for i in range(n): x[i] = -x[i]
     return x
 
 
@@ -154,8 +148,7 @@ def cxpy(x: np.ndarray, y: np.ndarray, s1: float) -> np.ndarray:
     r"""`x = s1 * y`, $x := s_1 y$."""
     n = y.shape[0]
     s1 = nbu.type_ref(y)(s1)
-    for i in range(n):
-        x[i] = s1 * y[i]
+    for i in range(n): x[i] = s1 * y[i]
     return x
 
 
@@ -164,8 +157,7 @@ def cxay(x: np.ndarray, y: np.ndarray, s1: float) -> np.ndarray:
     r"""`x = s1 + y`, $x := s_1 + y$."""
     n = y.shape[0]
     s1 = nbu.type_ref(y)(s1)
-    for i in range(n):
-        x[i] = s1 + y[i]
+    for i in range(n): x[i] = s1 + y[i]
     return x
 
 
@@ -175,8 +167,7 @@ def cxapy(x: np.ndarray, y: np.ndarray, s1: float, s2: float) -> np.ndarray:
     n = y.shape[0]
     typ = nbu.type_ref(y)
     s1, s2 = typ(s1), typ(s2)
-    for i in range(n):
-        x[i] = s1 + s2 * y[i]
+    for i in range(n): x[i] = s1 + s2 * y[i]
     return x
 
 
@@ -185,8 +176,7 @@ def axpy(x: np.ndarray, y: np.ndarray, s1: float) -> np.ndarray:
     r"""`x += s1 * y`, $x := x + s_1 y$."""
     n = y.shape[0]
     s1 = nbu.type_ref(y)(s1)
-    for i in range(n):
-        x[i] += s1 * y[i]
+    for i in range(n): x[i] += s1 * y[i]
     return x
 
 
@@ -195,8 +185,7 @@ def axay(x: np.ndarray, y: np.ndarray, s1: float) -> np.ndarray:
     r"""`x += s1 + y`, $x := x + s_1 + y$."""
     n = y.shape[0]
     s1 = nbu.type_ref(y)(s1)
-    for i in range(n):
-        x[i] += s1 + y[i]
+    for i in range(n): x[i] += s1 + y[i]
     return x
 
 
@@ -206,8 +195,7 @@ def axapy(x: np.ndarray, y: np.ndarray, s1: float, s2: float) -> np.ndarray:
     n = y.shape[0]
     typ = nbu.type_ref(y)
     s1, s2 = typ(s1), typ(s2)
-    for i in range(n):
-        x[i] += s1 + s2 * y[i]
+    for i in range(n): x[i] += s1 + s2 * y[i]
     return x
 
 
@@ -217,8 +205,7 @@ def pxaxpy(x: np.ndarray, y: np.ndarray, s1: float, s2: float) -> np.ndarray:
     n = y.shape[0]
     typ = nbu.type_ref(y)
     s1, s2 = typ(s1), typ(s2)
-    for i in range(n):
-        x[i] = s1 * x[i] + s2 * y[i]
+    for i in range(n): x[i] = s1 * x[i] + s2 * y[i]
     return x
 
 
@@ -228,8 +215,7 @@ def pxaxy(x: np.ndarray, y: np.ndarray, s1: float) -> np.ndarray:
     n = y.shape[0]
     typ = nbu.type_ref(y)
     s1 = typ(s1)
-    for i in range(n):
-        x[i] = s1 * x[i] + y[i]
+    for i in range(n): x[i] = s1 * x[i] + y[i]
     return x
 
 
@@ -242,8 +228,7 @@ def cxpyapz(x: np.ndarray, y: np.ndarray, z: np.ndarray, s1: float, s2: float) -
     r"""`x = s1 * y + s2 * z`, $x := s_1 y + s_2 z$."""
     n = y.shape[0]
     s1, s2 = nbu.type_ref(y)(s1), nbu.type_ref(z)(s2)
-    for i in range(n):
-        x[i] = s1 * y[i] + s2 * z[i]
+    for i in range(n): x[i] = s1 * y[i] + s2 * z[i]
     return x
 
 
@@ -256,8 +241,7 @@ def axpyapz(x: np.ndarray, y: np.ndarray, z: np.ndarray, s1: float, s2: float) -
     r"""`x += s1 * y + s2 * z`, $x := x + s_1 y + s_2 z$."""
     n = y.shape[0]
     s1, s2 = nbu.type_ref(y)(s1), nbu.type_ref(z)(s2)
-    for i in range(n):
-        x[i] += s1 * y[i] + s2 * z[i]
+    for i in range(n): x[i] += s1 * y[i] + s2 * z[i]
     return x
 
 
@@ -266,8 +250,7 @@ def cxpyaz(x: np.ndarray, y: np.ndarray, z: np.ndarray, s1: float) -> np.ndarray
     r"""`x = s1 * y + z`, $x := s_1 y + z$."""
     n = y.shape[0]
     s1 = nbu.type_ref(y)(s1)
-    for i in range(n):
-        x[i] = s1 * y[i] + z[i]
+    for i in range(n): x[i] = s1 * y[i] + z[i]
     return x
 
 
@@ -275,8 +258,7 @@ def cxpyaz(x: np.ndarray, y: np.ndarray, z: np.ndarray, s1: float) -> np.ndarray
 def cxyaz(x: np.ndarray, y: np.ndarray, z: np.ndarray) -> np.ndarray:
     r"""`x = y + z`, $x := y + z$."""
     n = y.shape[0]
-    for i in range(n):
-        x[i] = y[i] + z[i]
+    for i in range(n): x[i] = y[i] + z[i]
     return x
 
 
@@ -313,8 +295,7 @@ def vmax(x: np.ndarray) -> float:
     typ = nbu.type_ref(x)
     s = typ(nbu.prim_info(typ, 0))
     for e in x:
-        if e > s:
-            s = e
+        if e > s: s = e
     return s
 
 
@@ -324,8 +305,7 @@ def vmin(x: np.ndarray) -> float:
     typ = nbu.type_ref(x)
     s = typ(nbu.prim_info(typ, 1))
     for e in x:
-        if e < s:
-            s = e
+        if e < s: s = e
     return s
 
 
@@ -336,10 +316,8 @@ def vminmax(x: np.ndarray) -> tuple[float, float]:
     smin = typ(nbu.prim_info(typ, 1))
     smax = typ(nbu.prim_info(typ, 0))
     for e in x:
-        if e < smin:
-            smin = e
-        if e > smax:
-            smax = e
+        if e < smin: smin = e
+        if e > smax: smax = e
     return smin, smax
 
 
@@ -367,37 +345,32 @@ def argminmax(x: np.ndarray) -> tuple[float, float, int, int]:
 def dtrace(x: np.ndarray) -> float:
     """Square Diagonal Trace"""
     t = nbu.type_ref(x)(0)
-    for i in range(x.shape[0]):
-        t += x[i, i]
+    for i in range(x.shape[0]): t += x[i, i]
     return t
 
 
 @nbu.jtic
 def dadd(x: np.ndarray, s: float) -> None:
     """Square diagonal Add."""
-    for i in range(x.shape[0]):
-        x[i, i] += s
+    for i in range(x.shape[0]): x[i, i] += s
 
 
 @nbu.jtic
 def dvadd(x: np.ndarray, y: np.ndarray) -> None:
     """Square diagonal vector Add."""
-    for i in range(x.shape[0]):
-        x[i, i] += y[i]
+    for i in range(x.shape[0]): x[i, i] += y[i]
 
 
 @nbu.jtic
 def dmult(x: np.ndarray, s: float) -> None:
     """Square diagonal Multiply."""
-    for i in range(x.shape[0]):
-        x[i, i] *= s
+    for i in range(x.shape[0]): x[i, i] *= s
 
 
 @nbu.jtic
 def dvmult(x: np.ndarray, y: np.ndarray) -> None:
     """Square diagonal vector Multiply."""
-    for i in range(x.shape[0]):
-        x[i, i] *= y[i]
+    for i in range(x.shape[0]): x[i, i] *= y[i]
 
 
 @nbu.jti

@@ -34,10 +34,8 @@ def impl_insert_sort(sr: np.ndarray, comp_call: Callable[[Any, Any], bool]) -> N
 
 @nbu.jt
 def insert_sort(sr: np.ndarray, small_first: bool = True) -> None:
-    if small_first:
-        impl_insert_sort(sr, lambda k1, k2: k1 < k2)
-    else:
-        impl_insert_sort(sr, lambda k1, k2: k1 > k2)
+    if small_first: impl_insert_sort(sr, lambda k1, k2: k1 < k2)
+    else: impl_insert_sort(sr, lambda k1, k2: k1 > k2)
 
 
 @nbu.jt
@@ -54,10 +52,8 @@ def impl_arg_insert_sort(sr: np.ndarray, idxr: np.ndarray, comp_call: Callable[[
 
 @nbu.jt
 def arg_insert_sort(sr: np.ndarray, idxr: np.ndarray, small_first: bool = True) -> None:
-    if small_first:
-        impl_arg_insert_sort(sr, idxr, lambda k1, k2: k1 < k2)
-    else:
-        impl_arg_insert_sort(sr, idxr, lambda k1, k2: k1 > k2)
+    if small_first: impl_arg_insert_sort(sr, idxr, lambda k1, k2: k1 < k2)
+    else: impl_arg_insert_sort(sr, idxr, lambda k1, k2: k1 > k2)
 
 
 # SMALL_MERGESORT = 20 #original size, ~50 seems to provide better performance profile over large range
@@ -87,14 +83,12 @@ def make_merge_sort(argsort: bool = False, top_down: bool = True, ins_sep: int =
     if argsort:
 
         @nbu.jt
-        def lessthan(a, b, vals):
-            return vals[a] < vals[b]
+        def lessthan(a, b, vals): return vals[a] < vals[b]
 
     else:
 
         @nbu.jt
-        def lessthan(a, b, vals):
-            return a < b
+        def lessthan(a, b, vals): return a < b
 
     if top_down:
 
@@ -109,8 +103,7 @@ def make_merge_sort(argsort: bool = False, top_down: bool = True, ins_sep: int =
                 merge_sort(arr[mid:], vals, ws)
 
                 # Copy left half into workspace so we don't overwrite it
-                for i in range(mid):
-                    ws[i] = arr[i]
+                for i in range(mid): ws[i] = arr[i]
 
                 # Merge
                 left = ws[:mid]
@@ -251,10 +244,8 @@ def binary_argsearch(x: np.ndarray, v: Any, unsafe: Any | None = None) -> int:
     :param unsafe: If not None, enables an unsafe fast-path (see notes above).
     :returns: The insertion index.
     """
-    if x.size > 165:
-        return _sqleq_arg(x, v, unsafe)
-    else:
-        return np.searchsorted(x, v)
+    if x.size > 165: return _sqleq_arg(x, v, unsafe)
+    else: return np.searchsorted(x, v)
 
 
 def _sqleq_arg(x: np.ndarray, v: Any, unsafe: Any | None = None) -> int:
@@ -274,21 +265,19 @@ _N = nbu.types.none
 
 
 @nbu.ovsi(_sqleq_arg)
-def _sqleq_arg_(x, v, unsafe=None):
+def _sqleq_arg_(x, v, unsafe=None):  # pragma: no cover
     if unsafe is None or unsafe is _N:
 
         def impl(x, v, unsafe=None) -> int:
             i, n = 0, x.shape[0]
-            while i < n and x[i] < v:
-                i += 1
+            while i < n and x[i] < v: i += 1
 
             return i
     else:
 
         def impl(x, v, unsafe=None) -> int:
             i = 0
-            while x[i] < v:
-                i += 1
+            while x[i] < v: i += 1
             return i
 
     return impl

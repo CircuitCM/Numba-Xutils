@@ -68,7 +68,7 @@ def reset_nbux_numba_cache() -> int:
     for module in _iter_nbux_modules():
         for obj in vars(module).values():
             if isinstance(obj, CPUDispatcher):
-                clear = getattr(obj, "_clear", None)
+                clear = getattr(obj, "_clear", None) #hmm
                 if callable(clear):
                     clear()
                     count += 1

@@ -97,7 +97,7 @@ def test_op_public_grid_eval_paths_cover_exec_and_high_level_wrappers() -> None:
 def test_public_vector_module_alias_and_kernel_ops() -> None:
     """Exercise vector module aliases and representative kernel operations across active layers."""
     vec = nbux.op.vector
-    assert nbux.vops is vec
+    assert nbux.vector is vec
 
     x = np.array([1.0, -2.0, 3.0], dtype=np.float64)
     y = np.array([0.5, 4.0, -1.0], dtype=np.float64)
