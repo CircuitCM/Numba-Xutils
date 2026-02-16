@@ -9,9 +9,38 @@ import numpy as np
 
 import nbux.utils as nbu
 
+INS_SEP = 56
+FI = int | float
+MArray = np.ndarray | None
+
 
 @nbu.jt
-def impl_insert_sort(sr: np.ndarray, comp_call: Callable[[Any, Any], bool]) -> None:
+def _lessthan(a, b, vals=None):
+    return vals[a] < vals[b] if vals is not None else a < b
+
+
+@nbu.jt
+def _greaterthan(a, b, vals=None):
+    return vals[a] > vals[b] if vals is not None else a > b
+
+
+@nbu.jti
+def impl_insert_sort(sr: np.ndarray, idxr: MArray, comp_call: Callable[[FI, FI, MArray], bool]) -> None:
+    cr = idxr if idxr is not None else sr
+    vals = sr if idxr is not None else None
+    # because idxr is hardcoded as None or an array, this becomes compile-time evaluated and removed.
+    for i in range(1, cr.shape[0]):
+        k = cr[i]
+        j = i
+        while j > 0 and comp_call(k, cr[j - 1], vals):
+            # Make place for moving A[i] downwards
+            cr[j] = cr[j - 1]
+            j -= 1
+        cr[j] = k
+
+
+@nbu.jt
+def insert_sort(sr: np.ndarray, small_first: bool = True) -> None:
     """
     Insertion sort.
 
@@ -19,47 +48,29 @@ def impl_insert_sort(sr: np.ndarray, comp_call: Callable[[Any, Any], bool]) -> N
     performance for Numba ``njit`` compilation.)
 
     :param sr: Array to sort in-place.
-    :param comp_call: Comparator callable.
     :returns: None.
     """
-    for i in range(1, sr.shape[0]):
-        k = sr[i]
-        j = i
-        while j > 0 and comp_call(k, sr[j - 1]):
-            # Make place for moving A[i] downwards
-            sr[j] = sr[j - 1]
-            j -= 1
-        sr[j] = k
-
-
-@nbu.jt
-def insert_sort(sr: np.ndarray, small_first: bool = True) -> None:
-    if small_first: impl_insert_sort(sr, lambda k1, k2: k1 < k2)
-    else: impl_insert_sort(sr, lambda k1, k2: k1 > k2)
-
-
-@nbu.jt
-def impl_arg_insert_sort(sr: np.ndarray, idxr: np.ndarray, comp_call: Callable[[Any, Any], bool]) -> None:
-    for i in range(1, idxr.shape[0]):
-        k = idxr[i]
-        j = i
-        while j > 0 and comp_call(sr[k], sr[idxr[j - 1]]):
-            # Make place for moving A[i] downwards
-            idxr[j] = idxr[j - 1]
-            j -= 1
-        idxr[j] = k
+    if small_first: impl_insert_sort(sr, None, _lessthan)
+    else: impl_insert_sort(sr, None, _greaterthan)
 
 
 @nbu.jt
 def arg_insert_sort(sr: np.ndarray, idxr: np.ndarray, small_first: bool = True) -> None:
-    if small_first: impl_arg_insert_sort(sr, idxr, lambda k1, k2: k1 < k2)
-    else: impl_arg_insert_sort(sr, idxr, lambda k1, k2: k1 > k2)
+    """
+    Insertion based index sort.
+
+    :param sr: Array for sort comparison.
+    :param idxr: Array of sr indexes to sort.
+    :returns: None.
+    """
+    if small_first: impl_insert_sort(sr, idxr, _lessthan)
+    else: impl_insert_sort(sr, idxr, _greaterthan)
 
 
 # SMALL_MERGESORT = 20 #original size, ~50 seems to provide better performance profile over large range
 
-
-def make_merge_sort(argsort: bool = False, top_down: bool = True, ins_sep: int = 56) -> Callable[..., None]:
+#in the future make this like insert sort... way too ugly.
+def _make_merge_sort(argsort: bool = False, top_down: bool = True) -> Callable[..., None]:
     """
     Create a merge sort implementation for Numba.
 
@@ -76,10 +87,8 @@ def make_merge_sort(argsort: bool = False, top_down: bool = True, ins_sep: int =
 
     :param argsort: If True, build an argsort variant.
     :param top_down: If True, build the top-down recursive variant.
-    :param ins_sep: Insert-sort cutoff.
     :returns: A Numba-jittable ``merge_sort`` function.
     """
-    SMALL_MERGESORT = ins_sep
     if argsort:
 
         @nbu.jt
@@ -93,14 +102,14 @@ def make_merge_sort(argsort: bool = False, top_down: bool = True, ins_sep: int =
     if top_down:
 
         @nbu.jt
-        def merge_sort(arr, vals, _ws) -> None:  # assume ws is made by user
+        def _merge_sort(arr, vals, _ws) -> None:  # assume ws is made by user
             ws = _ws
-            if arr.size > SMALL_MERGESORT:
+            if arr.size > INS_SEP:
                 # Merge sort
                 mid = arr.size // 2
 
-                merge_sort(arr[:mid], vals, ws)
-                merge_sort(arr[mid:], vals, ws)
+                _merge_sort(arr[:mid], vals, ws)
+                _merge_sort(arr[mid:], vals, ws)
 
                 # Copy left half into workspace so we don't overwrite it
                 for i in range(mid): ws[i] = arr[i]
@@ -149,7 +158,7 @@ def make_merge_sort(argsort: bool = False, top_down: bool = True, ins_sep: int =
         # Idk why, maybe it has to do with rounding to the nearest index, perhaps initializing them outside of the loops
         # or another method would let this method surpass the recursive stack method.
         @nbu.jtp
-        def merge_sort(arr, vals, _ws, *__ext):
+        def _merge_sort(arr, vals, _ws, *__ext):
             # implement bottom up merge sort that first identifies the smallest # of partitions that equally divides the
             # array such that
             # each array is smaller than or equal to SMALL_MERGESORT and the # of partitions is v power multiple of 2.
@@ -157,12 +166,11 @@ def make_merge_sort(argsort: bool = False, top_down: bool = True, ins_sep: int =
             # next begins v bottom up merging like how it's done in top down only we use two for loops, the outer one
             # specifying the merge layer and the inner loop placing back into the array to be sorted.
             tsz = arr.size
-            nlayers = mt.ceil(mt.log2(tsz / SMALL_MERGESORT))
+            nlayers = mt.ceil(mt.log2(tsz / INS_SEP))
             parts = 2**nlayers
             gs = tsz / parts
-            for v in nb.prange(
-                1, parts + 1
-            ):  # parallelizable the merging part technically could be as well but less efficient.
+            #parallelizable, the merging part technically could be as well but less efficient.
+            for v in nb.prange(1, parts + 1):
                 st = nbu.ri64((v - 1) * gs)
                 ed = nbu.ri64(v * gs)
                 for i in range(st, ed):
@@ -182,9 +190,8 @@ def make_merge_sort(argsort: bool = False, top_down: bool = True, ins_sep: int =
                 # Iterate over the array in steps of 2*current_size
                 parts //= 2
                 gs *= 2
-                for v in range(
-                    1, parts + 1
-                ):  # should be pretty close to parallelizing this too, but id need to double check ws v bit more first.
+                # should be pretty close to parallelizing this too, but id need to double check ws v bit more first.
+                for v in range(1, parts + 1):
                     start = nbu.ri64((v - 1) * gs)
                     end = nbu.ri64(v * gs)
                     # if end>tsz:
@@ -218,14 +225,218 @@ def make_merge_sort(argsort: bool = False, top_down: bool = True, ins_sep: int =
                         i += 1
                         k += 1
 
-    return merge_sort
+    return _merge_sort
 
 
-arg_merge_sort = make_merge_sort(True, True, 56)
-# merge_sort20=make_merge_sort(False,20)
-merge_sort = make_merge_sort(False, True, 56)
-# merge_sort1=make_merge_sort(False,True,56)
-# merge_sort2=make_merge_sort(False, False,56)
+_arg_merge_sort = _make_merge_sort(True, True)
+_merge_sort = _make_merge_sort(False, True)
+
+
+@nbu.jt
+def impl_merge_sort(sr: np.ndarray, idxr: MArray, ws: np.ndarray, comp_call: Callable[[FI, FI, MArray], bool]) -> None:
+    cr = idxr if idxr is not None else sr
+    vals = sr if idxr is not None else None
+    if cr.size > INS_SEP:
+        # Merge sort
+        mid = cr.size // 2
+
+        # Keep sr fixed for argsort recursion; recurse on value views for direct sort.
+        if idxr is None:
+            impl_merge_sort(sr[:mid], None, ws, comp_call)
+            impl_merge_sort(sr[mid:], None, ws, comp_call)
+        else:
+            impl_merge_sort(sr, idxr[:mid], ws, comp_call)
+            impl_merge_sort(sr, idxr[mid:], ws, comp_call)
+
+        # Copy left half into workspace so we don't overwrite it
+        for i in range(mid): ws[i] = cr[i]
+
+        # Merge
+        left = ws[:mid]
+        right = cr[mid:]
+        out = cr
+
+        i = j = k = 0
+        ls = left.size
+        rs = right.size
+        while i < ls and j < rs:
+            if not comp_call(right[j], left[i], vals):
+                out[k] = left[i]
+                i += 1
+            else:
+                out[k] = right[j]
+                j += 1
+            k += 1
+
+        # Leftovers
+        while i < left.size:
+            out[k] = left[i]
+            i += 1
+            k += 1
+
+        # unecessary because if we get here, out[k] is literally the same memory address as right[j]
+        # while j < right.size:
+        #     out[k] = right[j]
+        #     j += 1
+        #     k += 1
+    else:
+        # fastest insert sort style I found in numba after testing several slightly different styles.
+        for i in range(1, cr.shape[0]):
+            k = cr[i]
+            j = i
+            while j > 0 and comp_call(k, cr[j - 1], vals):
+                # Make place for moving A[i] downwards
+                cr[j] = cr[j - 1]
+                j -= 1
+            cr[j] = k
+
+
+# WARNING TO USERS. In theory this should be faster because no recursion and the parallelized insert sort, while
+# the insert sort pl does improve performance the merge sort bottom_up loops run significantly slower.
+# Idk why, maybe it has to do with rounding to the nearest index, perhaps initializing them outside of the loops
+# or another method would let this method surpass the recursive stack method.
+@nbu.jtp
+def impl_bu_merge_sort(sr: np.ndarray, idxr: MArray, ws: np.ndarray, comp_call: Callable[[FI, FI, MArray], bool], *__ext) -> None:
+    cr = idxr if idxr is not None else sr
+    vals = sr if idxr is not None else None
+    # implement bottom up merge sort that first identifies the smallest # of partitions that equally divides the
+    # array such that
+    # each array is smaller than or equal to SMALL_MERGESORT and the # of partitions is v power multiple of 2.
+    # then it performs these insert sorts for each group.
+    # next begins v bottom up merging like how it's done in top down only we use two for loops, the outer one
+    # specifying the merge layer and the inner loop placing back into the array to be sorted.
+    tsz = cr.size
+    nlayers = mt.ceil(mt.log2(tsz / INS_SEP))
+    parts = 2**nlayers
+    gs = tsz / parts
+    #parallelizable, the merging part technically could be as well but less efficient.
+    for v in nb.prange(1, parts + 1):
+        st = nbu.ri64((v - 1) * gs)
+        ed = nbu.ri64(v * gs)
+        for i in range(st, ed):
+            k = cr[i]
+            j = i
+            while j > 0 and comp_call(k, cr[j - 1], vals):
+                # Make place for moving A[i] downwards
+                cr[j] = cr[j - 1]
+                j -= 1
+            cr[j] = k
+
+    # Merge layers: in each iteration, merge adjacent pairs of segments of size current_size.
+    # won't run quicker for some reason.
+    for _ in range(nlayers):
+        # Iterate over the array in steps of 2*current_size
+        parts //= 2
+        gs *= 2
+        # should be pretty close to parallelizing this too, but id need to double check ws v bit more first.
+        for v in range(1, parts + 1):
+            start = nbu.ri64((v - 1) * gs)
+            end = nbu.ri64(v * gs)
+            # if end>tsz:
+            #     print('shouldnt be possible',v)
+            #     end=max(end,tsz)
+            mid = nbu.ri64((v - 0.5) * gs)
+            # if mid >= tsz: #shouldn't be possible. as well as the other checks
+            #     break  # no pair to merge
+
+            # Copy the left segment [start:mid] into the workspace.
+            left_size = mid - start
+            for j in range(left_size):  # for complete parallel ws would need to be offset.
+                ws[j] = cr[start + j]
+
+            # Merge ws (left) and idxr[mid:end] (right) back into idxr[start:end]
+            i = 0  # index for ws (left segment)
+            j = mid  # index for right segment in idxr
+            k = start  # output index in idxr
+            while i < left_size and j < end:
+                if not comp_call(cr[j], ws[i], vals):
+                    cr[k] = ws[i]
+                    i += 1
+                else:
+                    cr[k] = cr[j]
+                    j += 1
+                k += 1
+
+            # Copy any remaining elements from the left segment.
+            while i < left_size:
+                cr[k] = ws[i]
+                i += 1
+                k += 1
+
+
+@nbu.jt
+def merge_sort(sr: np.ndarray, small_first: bool = True, ws:MArray=None) -> None:
+    """
+    Top-down merge sort.
+
+    Sorts ``sr`` in-place. If no workspace is provided, one is allocated
+    with size ``sr.size // 2``.
+
+    :param sr: Array to sort in-place.
+    :param small_first: If True, sort ascending; otherwise descending.
+    :param ws: Optional workspace array.
+    :returns: None.
+    """
+    if ws is None: ws = np.empty(sr.size // 2, dtype=sr.dtype)
+    if small_first: impl_merge_sort(sr, None, ws, _lessthan)
+    else: impl_merge_sort(sr, None, ws, _greaterthan)
+
+
+@nbu.jt
+def arg_merge_sort(sr: np.ndarray, idxr: np.ndarray, small_first: bool = True, ws:MArray=None) -> None:
+    """
+    Top-down merge argsort.
+
+    Sorts ``idxr`` in-place based on values in ``sr``. If no workspace is
+    provided, one is allocated with size ``idxr.size // 2``.
+
+    :param sr: Array used for sort comparison.
+    :param idxr: Index array to sort in-place.
+    :param small_first: If True, sort ascending by ``sr`` values; otherwise descending.
+    :param ws: Optional workspace array.
+    :returns: None.
+    """
+    if ws is None: ws = np.empty(idxr.size // 2, dtype=idxr.dtype)
+    if small_first: impl_merge_sort(sr, idxr, ws, _lessthan)
+    else: impl_merge_sort(sr, idxr, ws, _greaterthan)
+
+
+@nbu.jt
+def _bu_merge_sort(sr: np.ndarray, small_first: bool = True, ws:MArray=None) -> None:
+    """
+    Bottom-up merge sort.
+
+    Sorts ``sr`` in-place using the iterative bottom-up implementation.
+    If no workspace is provided, one is allocated with size ``sr.size // 2``.
+
+    :param sr: Array to sort in-place.
+    :param small_first: If True, sort ascending; otherwise descending.
+    :param ws: Optional workspace array.
+    :returns: None.
+    """
+    if ws is None: ws = np.empty(sr.size // 2, dtype=sr.dtype)
+    if small_first: impl_bu_merge_sort(sr, None, ws, _lessthan)
+    else: impl_bu_merge_sort(sr, None, ws, _greaterthan)
+
+
+@nbu.jt
+def _bu_arg_merge_sort(sr: np.ndarray, idxr: np.ndarray, small_first: bool = True, ws:MArray=None) -> None:
+    """
+    Bottom-up merge argsort.
+
+    Sorts ``idxr`` in-place based on values in ``sr`` using the iterative
+    bottom-up implementation. If no workspace is provided, one is allocated
+    with size ``idxr.size // 2``.
+
+    :param sr: Array used for sort comparison.
+    :param idxr: Index array to sort in-place.
+    :param small_first: If True, sort ascending by ``sr`` values; otherwise descending.
+    :param ws: Optional workspace array.
+    :returns: None.
+    """
+    if ws is None: ws = np.empty(idxr.size // 2, dtype=idxr.dtype)
+    if small_first: impl_bu_merge_sort(sr, idxr, ws, _lessthan)
+    else: impl_bu_merge_sort(sr, idxr, ws, _greaterthan)
 
 
 # I'm adding search sorted here as unlike smooth/non-smooth lines, this is for finite sets.

@@ -107,19 +107,7 @@ From my past experience, these behaviors might be true, but need to be verified 
     benefits of the sync branch alone, then you need to define them as different functions, they could then be tied in
     with a custom overloads. To make this situation generic or at least less boilerplate to implement, I developed a
     hacky approach below.
-    - If you have multiple layers of `prange` only the outer one will be parallelized, **unless** all inner ranges are
-    the same, (see here)[]. Example:
-    ```python
-    #Will parallelize over both
-    for n in nb.prange(100_000):
-        for m in nb.prange(100_000):
-            pass
-    
-    #Will not parallelize...
-    for n in nb.prange(100_000):
-        for m in nb.prange(90_000):
-            pass
-    ```    
+    - If you have multiple layers of `prange` only the outer one will be parallelized.
 """
 
 _dft = dict(fastmath=_fm, error_model=_erm)  # base python arguments.
@@ -180,27 +168,16 @@ rgp_s = rg_no_parallelperf_warn(rgp)
 rgpc = _rg(**jit_pc)
 rgpc_s = rg_no_parallelperf_warn(rgpc)
 
-
 # --- OVERLOADS DECORATORS
 # I'm pretty sure caching is redundant for overloads, but assuming not and including.
-def ovs(impl: Callable[..., Any]) -> Callable[..., Any]: return overload(impl, jit_options=jit_s)
-
-
-def ovsi(impl: Callable[..., Any]) -> Callable[..., Any]: return overload(impl, jit_options=jit_s, inline="always")
-
-
-def ovsc(impl: Callable[..., Any]) -> Callable[..., Any]: return overload(impl, jit_options=jit_sc)
-
-
-def ovsic(impl: Callable[..., Any]) -> Callable[..., Any]: return overload(impl, jit_options=jit_sc, inline="always")
-
+ovs= lambda impl: overload(impl, jit_options=jit_s)
+ovsi = lambda impl: overload(impl, jit_options=jit_s, inline="always")
+ovsc = lambda impl: overload(impl, jit_options=jit_sc)
+ovsic = lambda impl: overload(impl, jit_options=jit_sc, inline="always")
 
 # It's also possible parallel is never directly utilized by overloads.
-def ovp(impl: Callable[..., Any]) -> Callable[..., Any]: return overload(impl, jit_options=jit_p)
-
-
-def ovpc(impl: Callable[..., Any]) -> Callable[..., Any]: return overload(impl, jit_options=jit_pc)
-
+ovp = lambda impl: overload(impl, jit_options=jit_p)
+ovpc = lambda impl: overload(impl, jit_options=jit_pc)
 
 # shorthand
 fb_ = np.frombuffer
@@ -691,7 +668,7 @@ def op_args(call_op: Op, args: CSeq | Any = (), defr: Any = None) -> Any:
 
     Note how in the example, 7 and 0.1 would occupy argument ``d``, and the rest fall into the variable ``*args``
     sequence. Args length can be used within a numba block, and its elements are accessed statically. But
-    ``op_call_args`` would fail for the same setting.
+    ``op_call_args`` would fail for the same setting. Normal convention 
 
 
     :param call_op: The callable, or callable operator and attached parameters.
@@ -791,29 +768,19 @@ def prim_info(dt: Any, field: int) -> Any:
 
     match (dt.kind, field):
         # Integer & unsigned integer
-        case ("i" | "u", 0):
-            return np.iinfo(dt).min
-        case ("i" | "u", 1):
-            return np.iinfo(dt).max
+        case ("i" | "u", 0): return np.iinfo(dt).min
+        case ("i" | "u", 1): return np.iinfo(dt).max
         # Floating point
-        case ("f", 0):
-            return np.finfo(dt).min
-        case ("f", 1):
-            return np.finfo(dt).max
-        case ("f", 2):
-            return np.finfo(dt).eps
+        case ("f", 0): return np.finfo(dt).min
+        case ("f", 1): return np.finfo(dt).max
+        case ("f", 2): return np.finfo(dt).eps
         # Boolean
-        case ("b", 0):
-            return False
-        case ("b", 1):
-            return True
+        case ("b", 0): return False
+        case ("b", 1): return True
         # Complex types
-        case ("c", 0):
-            return complex(np.finfo(dt).min, np.finfo(dt).min)
-        case ("c", 1):
-            return complex(np.finfo(dt).max, np.finfo(dt).max)
-        case ("c", 2):
-            return np.finfo(dt).eps  # hmmm
+        case ("c", 0): return complex(np.finfo(dt).min, np.finfo(dt).min)
+        case ("c", 1): return complex(np.finfo(dt).max, np.finfo(dt).max)
+        case ("c", 2): return np.finfo(dt).eps  # hmmm
         # Universal: byte size
         case (_, 3):
             return dt.itemsize
@@ -843,15 +810,19 @@ def _prim_info(typ, res):
 
 
 @jtic
-def placerange(r: np.ndarray, start: int = 0, step: int = 1) -> None:
+def placerange(r: np.ndarray, start: int|float = 0, step: int|float = 1) -> None:
     """
-    Like numpy arange but for existing arrays. Start and step may be float values.
+    Like numpy arange but for existing arrays.
 
     :param r: Output array.
     :param start: Starting value.
     :param step: Step value.
     :returns: None.
     """
+    #Note: The reason we *don't* do these casts is because integer product and add are quicker than float prod add
+    #yet we will still have to do one int to float cast in the float case anyway.
+    #tp= type_ref(r)
+    #start,step=tp(start),tp(step)
     for i in range(r.shape[0]): r[i] = start + i * step
 
 
