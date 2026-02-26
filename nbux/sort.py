@@ -14,17 +14,17 @@ FI = int | float
 MArray = np.ndarray | None
 
 
-@nbu.jt
+@nbu.jti
 def _lessthan(a, b, vals=None):
     return vals[a] < vals[b] if vals is not None else a < b
 
 
-@nbu.jt
+@nbu.jti
 def _greaterthan(a, b, vals=None):
     return vals[a] > vals[b] if vals is not None else a > b
 
 
-@nbu.jti
+@nbu.jt
 def impl_insert_sort(sr: np.ndarray, idxr: MArray, comp_call: Callable[[FI, FI, MArray], bool]) -> None:
     cr = idxr if idxr is not None else sr
     vals = sr if idxr is not None else None
@@ -274,7 +274,7 @@ def impl_merge_sort(sr: np.ndarray, idxr: MArray, ws: np.ndarray, comp_call: Cal
             i += 1
             k += 1
 
-        # unecessary because if we get here, out[k] is literally the same memory address as right[j]
+        # unnecessary because if we get here, out[k] is literally the same memory address as right[j]
         # while j < right.size:
         #     out[k] = right[j]
         #     j += 1
@@ -437,6 +437,108 @@ def _bu_arg_merge_sort(sr: np.ndarray, idxr: np.ndarray, small_first: bool = Tru
     if ws is None: ws = np.empty(idxr.size // 2, dtype=idxr.dtype)
     if small_first: impl_bu_merge_sort(sr, idxr, ws, _lessthan)
     else: impl_bu_merge_sort(sr, idxr, ws, _greaterthan)
+
+"""
+Specialized partial insert sorts below, that insert into already sorted array blocks.
+For 1*, cost <=O(m).
+For n*, cost <=n*O(m).
+"""
+
+@nbu.jt
+def insert_sort_1l(sr: np.ndarray, small_first: bool = True) -> None:
+    if small_first: impl_insert_sort_1l(sr, None, _lessthan)
+    else: impl_insert_sort_1l(sr, None, _greaterthan)
+
+@nbu.jt
+def arg_insert_sort_1l(sr: np.ndarray, idxr: np.ndarray, small_first: bool = True) -> None:
+    if small_first: impl_insert_sort_1l(sr, idxr, _lessthan)
+    else: impl_insert_sort_1l(sr, idxr, _greaterthan)
+
+@nbu.jt
+def insert_sort_nl(sr: np.ndarray, n: int, small_first: bool = True) -> None:
+    if small_first: impl_insert_sort_nl(sr, None, n, _lessthan)
+    else: impl_insert_sort_nl(sr, None, n, _greaterthan)
+
+@nbu.jt
+def arg_insert_sort_nl(sr: np.ndarray, idxr: np.ndarray, n: int, small_first: bool = True) -> None:
+    if small_first: impl_insert_sort_nl(sr, idxr, n, _lessthan)
+    else: impl_insert_sort_nl(sr, idxr, n, _greaterthan)
+
+@nbu.jt
+def insert_sort_1r(sr: np.ndarray, small_first: bool = True) -> None:
+    if small_first: impl_insert_sort_1r(sr, None, _lessthan)
+    else: impl_insert_sort_1r(sr, None, _greaterthan)
+
+@nbu.jt
+def arg_insert_sort_1r(sr: np.ndarray, idxr: np.ndarray, small_first: bool = True) -> None:
+    if small_first: impl_insert_sort_1r(sr, idxr, _lessthan)
+    else: impl_insert_sort_1r(sr, idxr, _greaterthan)
+
+@nbu.jt
+def insert_sort_nr(sr: np.ndarray, n: int, small_first: bool = True) -> None:
+    if small_first: impl_insert_sort_nr(sr, None, n, _lessthan)
+    else: impl_insert_sort_nr(sr, None, n, _greaterthan)
+
+@nbu.jt
+def arg_insert_sort_nr(sr: np.ndarray, idxr: np.ndarray, n: int, small_first: bool = True) -> None:
+    if small_first: impl_insert_sort_nr(sr, idxr, n, _lessthan)
+    else: impl_insert_sort_nr(sr, idxr, n, _greaterthan)
+
+
+@nbu.jt
+def impl_insert_sort_1l(sr: np.ndarray, idxr: MArray, comp_call: Callable[[FI, FI, MArray], bool]) -> None:
+    cr = idxr if idxr is not None else sr
+    vals = sr if idxr is not None else None
+    n_elements = cr.shape[0] - 1
+    k = cr[0]
+    j = 0
+    while j < n_elements and comp_call(cr[j + 1], k, vals):
+        cr[j] = cr[j + 1]
+        j += 1
+    cr[j] = k
+
+
+@nbu.jt
+def impl_insert_sort_nl(sr: np.ndarray, idxr: MArray, n: int, comp_call: Callable[[FI, FI, MArray], bool]) -> None:
+    cr = idxr if idxr is not None else sr
+    vals = sr if idxr is not None else None
+    n_elements = cr.shape[0] - 1
+    for i in range(n - 1, -1, -1):
+        k = cr[i]
+        j = i
+        while j < n_elements and comp_call(cr[j + 1], k, vals):
+            cr[j] = cr[j + 1]
+            j += 1
+        cr[j] = k
+
+
+
+@nbu.jt
+def impl_insert_sort_1r(sr: np.ndarray, idxr: MArray, comp_call: Callable[[FI, FI, MArray], bool]) -> None:
+    cr = idxr if idxr is not None else sr
+    vals = sr if idxr is not None else None
+    j = cr.shape[0] - 1
+    k = cr[j]
+    while j > 0 and comp_call(k, cr[j - 1], vals):
+        cr[j] = cr[j - 1]
+        j -= 1
+    cr[j] = k
+
+
+@nbu.jt
+def impl_insert_sort_nr(sr: np.ndarray, idxr: MArray, n: int, comp_call: Callable[[FI, FI, MArray], bool]) -> None:
+    cr = idxr if idxr is not None else sr
+    vals = sr if idxr is not None else None
+    n_elements = cr.shape[0]
+    start_idx = n_elements - n
+    for i in range(start_idx, n_elements):
+        k = cr[i]
+        j = i
+        while j > 0 and comp_call(k, cr[j - 1], vals):
+            cr[j] = cr[j - 1]
+            j -= 1
+        cr[j] = k
+
 
 
 # I'm adding search sorted here as unlike smooth/non-smooth lines, this is for finite sets.

@@ -4,23 +4,29 @@ import inspect
 import os
 import textwrap
 import warnings
+from numbers import Number
 from types import NoneType
-from typing import Any, Callable, Sequence
+from typing import Any, Callable, Sequence, TypeAlias, TypeVar, cast
 
 import numba as nb
 import numba.core.errors as nb_error
 import numpy as np
-from numba import types
+from numba import literal_unroll, types
 from numba.core import cgutils
 from numba.core.errors import NumbaPerformanceWarning
 from numba.extending import intrinsic, overload, register_jitable
 from numba.np.numpy_support import as_dtype
 
+#Typing
 _N = types.none
-# Some shorthands
-unroll = nb.literal_unroll
+T = TypeVar("T")
 CSeq = tuple[Any, ...] | list[Any]
 CSeqRuntime = (tuple, list)
+
+FloatOp = Callable[..., float] | tuple[Callable[..., float], ...]
+ScalarOp = Callable[..., Number] | tuple[Callable[..., Number], ...]
+ArrayOp = Callable[..., np.ndarray] | tuple[Callable[..., np.ndarray], ...]
+Op = Callable[..., Any] | tuple[Callable[..., Any], ...]
 
 
 # implements
@@ -56,16 +62,15 @@ def rg_no_parallelperf_warn(rrg: Callable[[Callable[..., Any]], Any]) -> Callabl
 # This only changes once at import time.
 # --- Numba Global Fastmath : you can frequently get a 2x performance boost, for virtually no loss in error range (only
 # 4x larger than 2**-{# your bit precision range})
-_fm = os.environ.get("NB_GLOB_FM", "true")
+_fm = os.environ.get("NB_GLOB_FM", "true") # todo: rename to NBUX not NB
 _fm = False if not _fm or _fm.lower() in "false" else eval(_fm) if any(i in _fm for i in ("[", "{", "(")) else True
 # --- Numba Global Error Model : 'numpy'|'python' will do less checks but frequently has much faster jitted code,
 # because it isn't forced to fall back to larger data types, [see this article]().
 _erm = os.environ.get("NB_GLOB_EM", "numpy")
-
+_oc = os.environ.get("NB_GLOB_OC", "false")
+_oc = False if not _oc or _oc.lower() in "false" else True
 
 """
-Before continuation some notes on this section:
-
 ## Configurations
 s|p : Sync or Parallel, the threading strategy.
 c : Cache the compilation for new signatures.
@@ -77,9 +82,10 @@ inlining of low level operations if LLVM won't do it.
 jt - Numba jit using the base defaults and extension characters seen above.
 rg - Register Jittable, these functions will compile into the Numba IR but run as python when called from the
 interpreter. This can actually improve performance significantly for the python function as Numba functions have a high
-overhead cost to call. you can call a jitted functions py func by `jitfunc.py_func(*args, **kwargs)`.
+overhead cost to call. Interpreter/python mode can be called with `jitfunc.py_func(*args, **kwargs)`.
 ov - Override decorators. See the numba docs for coverage on this.
-
+"""
+"""
 From my past experience, these behaviors might be true, but need to be verified from source:
 - Cache:
     - Great for reducing initial startup times by not needing to recompile the entire library. This even significantly
@@ -101,7 +107,7 @@ From my past experience, these behaviors might be true, but need to be verified 
     significantly smaller blocks (optimal for asymmetric or long running tasks). You could change block size outside of
     the parallel block though. It also won't cache if you request thread scope IDs.
     - Will run parallel in scope. So if you call a @jtp function from within a @jt function you will get parallel
-    benefits, but expecting parallel dispatch from a @jt function within @jtp block is not applicable.
+    benefits, but don't expect parallel dispatch from a @jt function within @jtp block.
     - Using a parallel decorator but a branch to decide if the block should be run parallel or not, will **always**
     compile in the parallel and sync branch, even if the branch comes from a constant. If you want the low overhead
     benefits of the sync branch alone, then you need to define them as different functions, they could then be tied in
@@ -114,6 +120,7 @@ _dft = dict(fastmath=_fm, error_model=_erm)  # base python arguments.
 jit_s = _dft
 jit_sn = jit_s | dict(nogil=True)
 jit_sc = jit_s | dict(cache=True)
+jit_soc = jit_s | dict(cache=_oc)
 jit_scn = jit_sc | dict(nogil=True)
 jit_si = jit_s | dict(inline="always")
 jit_sci = jit_si | dict(cache=True)
@@ -122,24 +129,29 @@ jit_scin = jit_sci | dict(nogil=True)
 jit_p = _dft | dict(parallel=True)
 jit_pn = jit_p | dict(nogil=True)
 jit_pc = jit_p | dict(cache=True)
+jit_poc = jit_p | dict(cache=_oc)
 jit_pcn = jit_pc | dict(nogil=True)
 jit_pi = jit_p | dict(inline="always")
 jit_pci = jit_pi | dict(cache=True)
 
+# ::: jits
 # --- JIT DECORATORS
 jt = nb.njit(**jit_s)  # plain jit
 jtc = nb.njit(**jit_sc)  # cache
+jtoc = nb.njit(**jit_soc)  # optional cache - Python env variable controlled caching, faster load and compile vs maybe faster runtime.
 jtn = nb.njit(**jit_sn)  # nogil
 jtnc = nb.njit(**jit_scn)  # nogil and cache
 jti = nb.njit(**jit_si)  # inline
 jtic = nb.njit(**jit_sci)  # inline and cache - might have no effect as inline forces code injection.
-# there is barely a concievable need for both inline and nogil in the same decorator.
+# there is barely a conceivable need for both inline and nogil in the same decorator.
 # jtinc=nb.njit(**jit_scin)
 
 jtp = nb.njit(**jit_p)  # jit parallel.
 jtp_s = njit_no_parallelperf_warn(**jit_p)  # jit parallel - silence no parallel warning.
 jtpc = nb.njit(**jit_pc)
 jtpc_s = njit_no_parallelperf_warn(**jit_pc)
+jtpoc = nb.njit(**jit_poc)
+jtpoc_s = njit_no_parallelperf_warn(**jit_poc)
 # we might want parallel nogil if we eg run less python threads than number of cores and we limit thread dispatch in the
 # parallel block
 jtpn = nb.njit(**jit_pn)
@@ -175,12 +187,14 @@ ovsi = lambda impl: overload(impl, jit_options=jit_s, inline="always")
 ovsc = lambda impl: overload(impl, jit_options=jit_sc)
 ovsic = lambda impl: overload(impl, jit_options=jit_sc, inline="always")
 
-# It's also possible parallel is never directly utilized by overloads.
+# It's also possible parallel is never directly used by overloads.
 ovp = lambda impl: overload(impl, jit_options=jit_p)
 ovpc = lambda impl: overload(impl, jit_options=jit_pc)
 
 # shorthand
+unroll=literal_unroll
 fb_ = np.frombuffer
+# :::
 
 
 def compiletime_parallelswitch() -> None: pass  # pragma: no cover
@@ -215,7 +229,7 @@ def stack_empty(size: int, shape: int | tuple[int, ...], dtype: Any) -> np.ndarr
 
     Notes
     -----
-    The carray cannot be returned from a function.
+    The carray cannot be returned from a function (within a jit block).
 
     Reference: https://github.com/numba/numba/issues/5084#issue-550324913
 
@@ -413,10 +427,10 @@ def display_round(f: float, m: int = 1, s: int = 10) -> float:
 | int16           | i2        | 16-bit signed integer                  |
 | int32           | i4        | 32-bit signed integer                  |
 | int64           | i8        | 64-bit signed integer                  |
-| intc            | –         | C int-sized integer                    |
-| uintc           | –         | C int-sized unsigned integer           |
-| intp            | –         | pointer-sized integer                  |
-| uintp           | –         | pointer-sized unsigned integer         |
+| intc            | -         | C int-sized integer                    |
+| uintc           | -         | C int-sized unsigned integer           |
+| intp            | -         | pointer-sized integer                  |
+| uintp           | -         | pointer-sized unsigned integer         |
 | float32         | f4        | single-precision floating-point number |
 | float64, double | f8        | double-precision floating-point number |
 | complex64       | c8        | single-precision complex number        |
@@ -425,7 +439,6 @@ def display_round(f: float, m: int = 1, s: int = 10) -> float:
 We can get the type using type_ref and check it against np.dtype's within the jit scope.
 But it has to be single boolean statements eg typ is np.float64 or typ is np.float32. Likely because this is compile 
 time and not run time.
-
 """
 
 
@@ -440,11 +453,19 @@ def type_ref(arg: Any) -> type[Any]:
     :returns: A dtype/type reference for ``arg``.
     """
     if isinstance(arg, np.ndarray): return arg.dtype.type
-    else: return type(arg)
+    art=type(arg)
+    if art is int: return np.int64
+    if art is float: return np.float64
+    if art is bool: return np.bool_
+    if art is complex: return np.complex128
+    return art
+    
 
+
+tr_ = type_ref
 
 @ovsic(type_ref)
-def _type_ref(arg):  # pragma: no cover
+def impl_type_ref(arg):  # pragma: no cover
     """
     Numba overloads for type_ref.
 
@@ -461,6 +482,33 @@ def _type_ref(arg):  # pragma: no cover
     else:
         typ = arg  # It's already the correct type. it only sees type in this scope not value
         return lambda arg: typ
+
+
+def cast_val(typ:type):
+    """Takes the output of type_ref and turns it into a python native type. If we are in the python interpreter e.g. a
+     ``rg`` block, we want all values to be python types so they run faster. In numba this does nothing as primitive 
+     types are used.
+     
+     This should *only* be used for values, and not for assigning array types.
+
+    """
+    #exact native match not isinstance
+    if typ in (int,float,bool,complex):
+        return typ
+    if not hasattr(typ,'kind'):typ = np.dtype(typ)
+    match typ.k:
+        case 'i'|'u': return int
+        case 'f': return float
+        case 'b': return bool
+        case 'c': return complex
+        case _: return typ
+    
+        
+vt_ = cast_val
+
+@ovs(cast_val)
+def impl_cast_val(typ:type):
+    return lambda typ:typ
 
 
 def if_val_cast(typ: type[Any], val: Any) -> Any:
@@ -641,39 +689,52 @@ def _op_call_args(call_op, args=(), defr=None):  # pragma: no cover
         return lambda call_op, args=(), defr=None: call_op[0](args,*call_op[1:])
 
 
-def op_args(call_op: Op, args: CSeq | Any = (), defr: Any = None) -> Any:
+def op_args(call_op: Op, args: tuple | Any = (), defr: Any = None) -> Any:
     """
-    Previously called ``op_call_args_v2`` as ``op_call_args``'s successor, only difference being we send
-    ``call_op``'s own arguments before ``args``.
-
-    This method is more flexible than ``op_call_args`` because it allows the underlying callable to still have
-    a variable portion of arguments when used at different entry points. While any arguments in ``call_op[1:]``
-    e.g. array work memory addresses or config values, can be treated like generic or unobserved constants.
+    ``op_args`` supports first class functions in numba. It defines default arguments, like work memory and config 
+    variables, while still supporting call inputs. This can be especially useful for libraries that provide routines 
+    that interact with a user's own functions, e.g. optimizers, modeling, data processing. The weakness of first class 
+    functions is that they do not support cached compilations from the python scope, but this can be overcome by 
+    wrapping the dispatcher with a declaration that uses named variables.
+     
+    This is ``op_call_args`` successor, only difference being we send ``call_op``'s own arguments before ``args``.
+    This method is more flexible, it allows the underlying callable to have a generically variable portion
+    of arguments. ``call_op`` may be slightly unintuitive at first because it reverses the typical pattern of putting
+    required/dependent args first and config args after.
 
     Example:
 
     .. code-block:: python
 
-        @nbux.jt
-        def callop(a,b,c,d,*args):
-            pass
+        @nbu.jt
+        def caller(a, b, c, d, *args):
+            print(a,b,c,d,*args)
 
-        op=(callop, 1,2,3)
+        #Within caller docs it might be
+        op=(caller, 1,2,3)
 
-        @nbux.jt
-        def testop(op):
+        #do not cache, or new cache files will keep being built without a use.
+        @nbu.jt
+        def testop(call_op,n):
+            nbu.op_args(call_op, (n,7,9,6))
+            nbu.op_args(call_op, (n,.1,.2))
+        
+        testop(op,0)
+        
+        @nbu.jtc
+        def c_testop(a, b, c, m=0):
+            testop((caller,a,b,c),m)
+        
+        #now caches because caller is defined statically.
+        c_testop(1,2,3)
+            
 
-            nbux.op_args(op, (7,9,6))
-            nbux.op_args(op, (.1,.2))
-
-    Note how in the example, 7 and 0.1 would occupy argument ``d``, and the rest fall into the variable ``*args``
-    sequence. Args length can be used within a numba block, and its elements are accessed statically. But
-    ``op_call_args`` would fail for the same setting. Normal convention 
-
+    Note how args of length 1 and 2 are supported in this example, but ``op_call_args`` would fail.
 
     :param call_op: The callable, or callable operator and attached parameters.
     :param args: The other implementation arguments that are treated as external or problem-specific inputs.
-    :param defr: Default return value when ``call_op`` is ``None``.
+    :param defr: Default return value when ``call_op`` is ``None``. Example - Stopping an algorithm early, without a
+        condition we want should_stop = defr = False always.
     :returns: Function output.
     """
 
@@ -691,8 +752,8 @@ def op_args(call_op: Op, args: CSeq | Any = (), defr: Any = None) -> Any:
         return call_op[0](*call_op[1:], args)
 
 
-@ovsic(op_args)
-def _op_args(call_op, args=(), defr=None):  # pragma: no cover
+@ovsi(op_args)
+def impl_op_args(call_op, args=(), defr=None):  # pragma: no cover
     """
     ``op_args`` overload for the Numba implementation.
 
@@ -764,6 +825,8 @@ def prim_info(dt: Any, field: int) -> Any:
     :param field: Field selector (see list above).
     :returns: The requested field value, or ``None``.
     """
+    #NOTE: python native int casts to np.int32, but numba defaults to int64. Since we want conventions to match
+    #inside and outside jit kernels, I'm overriding the python default. Might be other data types that are different.
     if not hasattr(dt, "kind"): dt = np.dtype(dt)
 
     match (dt.kind, field):
@@ -790,10 +853,11 @@ def prim_info(dt: Any, field: int) -> Any:
 
 
 np_tinfo = prim_info
+pi_ = prim_info
 
 
 @ovsic(prim_info)
-def _prim_info(typ, res):
+def impl_prim_info(typ, res):
     """
     Overloads for primitives info. Implementation for numba mode.
 
@@ -975,13 +1039,9 @@ def ir_force_separate_pl(
     In the current version numba still compiles in both the parallel and synchronous blocks even if
     the conditional branch that routes to either implementation is a constant/static value. Meaning that
     there will be the compilation bloat and decision scope that LLVM won't be able to optimize away, this is
-    heavier on the system than a simple and lightweight single threaded complition would be.
+    heavier on the system than a simple and lightweight single threaded compilation would be.
 
-    See :module:`nbux._rng` for use examples.
-
-    This is a paragraph that contains `a link`_.
-
-    .. _a link: https://domain.invalid/
+    See :module:`nbux.rng` for use examples.
 
     :param sync_impl: The (only) synchronous implementation of the numba function.
     :param pl_impl: The parallel implementation of the numba function.
@@ -1113,18 +1173,14 @@ _verbs = False
 @ovsic(l_12_d)
 def _l_12_d(x, i1: int = 0, i2: int = 0, d: int = 0):  # pragma: no cover
     def _impl(x, i1: int = 0, i2: int = 0, d: int = 0): return x
-
     if isinstance(x, types.Array):
         if isinstance(d, (nb.types.Literal, int)):
             dv = d if isinstance(d, int) else d.literal_value
             if _verbs: print("d is ", dv)
-            if x.ndim >= 2 + dv:
-
+            if x.ndim >= 2 + dv: 
                 def _impl(x, i1: int = 0, i2: int = 0, d: int = 0): return x[i1, i2]
             elif x.ndim == 1 + dv:
-
                 def _impl(x, i1: int = 0, i2: int = 0, d: int = 0): return x[i1]
-
             return _impl
         if _verbs: print("Requesting literal value for d")
         return lambda x, i1=0, i2=0, d=0: nb.literally(d)

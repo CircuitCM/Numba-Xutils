@@ -3,7 +3,6 @@ from __future__ import annotations
 from . import vector
 from ._misc import (
     cholesky_fsolve_inplace,
-    cubic_lagrange_coef,
     cubic_newton_coef,
     grid_eval,
     grid_eval_exec,
@@ -18,7 +17,6 @@ from ._misc import (
 __all__ = [
     "vector",
     "cholesky_fsolve_inplace",
-    "cubic_lagrange_coef",
     "cubic_newton_coef",
     "grid_eval",
     "grid_eval_exec",

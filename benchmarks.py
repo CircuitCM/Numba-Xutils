@@ -659,7 +659,6 @@ def roundi_benchmark():
                repeat_sequence=25,
                ops_mult=1)
 
-
 ### Unrolling tests found online.
 @jt
 def k1(a):

@@ -233,7 +233,7 @@ def signedroot_secant(
     dtyp: type[Any] | None = None,
 ) -> tuple[float, float, float, int]:
     """
-    A bracketed secant method that achieves (empirically) faster convergence by knowing the sign of the function to the
+    A bracketed secant method that achieves (emperically) faster convergence by knowing the sign of the function to the
     left and right of the root.
     It also allows us to select if the slope of our root is positive or negative when there are multiple roots. Which
     corresponds to finding local maxima or minima of the integrated line.
@@ -306,10 +306,8 @@ def signedroot_secant(
     if sign == -1:
         op_bracket = (fhi < _0) or eager
         fo, f = fhi, flo
-        lamo, lam = (
-            hi,
-            lo,
-        )  # We know lo is positive, so we are more confident in giving it the step 2 interpolation point.
+        # We know lo is positive, so we are more confident in giving it the step 2 interpolation point.
+        lamo, lam = hi, lo
         lrt, hrt = _1 - br_rate, br_rate  # we want eagerness away from known side. so smaller=more conservative.
     else:
         op_bracket = (flo < _0) or eager

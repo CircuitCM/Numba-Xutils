@@ -2,8 +2,8 @@ from __future__ import annotations
 
 import numpy as np
 
-import nbux._sort as sorti
 import nbux.op.vector as vec
+import nbux.sort as sorti
 
 
 def test_sort_internal_paths_cover_impl_and_alt_merge_variants() -> None:

@@ -45,18 +45,25 @@ def jt_uniform_rng(a: float, b: float) -> float:
 ##
 
 
-@nbu.jtic
+@nbu.jtc
 def _ss(f) -> None:
     rand.seed(f)
     np.random.seed(f)
 
 
 def set_seed(seed: int | None) -> None:
-    """Set both ``random`` and ``numpy.random`` seeds when ``seed`` is not ``None``."""
+    """Set both ``random`` and ``numpy.random`` seeds for both python and jit execution, from a python scope.  
+     Or just jit execution from a jit scope.  
+     
+     Typically calling set_seed from python scope is best, only needs to be compiled into jit routines for specific needs."""
     if seed is not None:
         _ss(seed)
         rand.seed(seed)
         np.random.seed(seed)
+        
+@nbu.ovs(set_seed)
+def impl_set_seed(seed: int | None):
+    return _ss
 
 
 _N = nbu.types.none

@@ -12,7 +12,6 @@ from ._linesearch import (
     signseeking_halley,
 )
 from ._misc import (
-    durstenfeld_p_shuffle,
     edge_sample,
     gershgorin_l1_norms,
     lars1_constraintsolve,
@@ -22,7 +21,6 @@ from ._misc import (
 
 __all__ = [
     "brents_method",
-    "durstenfeld_p_shuffle",
     "edge_sample",
     "gershgorin_l1_norms",
     "lars1_constraintsolve",

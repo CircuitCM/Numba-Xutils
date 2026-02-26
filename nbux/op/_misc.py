@@ -90,7 +90,7 @@ def cubic_newton_coef(
 
 
 @nbu.rgi
-def cubic_lagrange_coef(
+def _cubic_lagrange_coef(
     x0: float, x1: float, x2: float, x3: float, f0: float, f1: float, f2: float, f3: float
 ) -> tuple[float, float, float, float]:
     """
@@ -258,14 +258,17 @@ else:
         _1 = at(1.0)
         a_mult, rem_mult = at(a_mult), at(rem_mult)
         isc = at is np.complex64 or at is np.complex128
+        
         if isc:
             ax = a.conj()
             if a_mult != _1: ax *= a_mult
         # np.dot will definitely copy if mem-address is the same, so might as well make our own copy
         elif a_mult != _1: ax = a * a_mult
         else: ax = a
+        
         if outer: a, ax = a, ax.T
         else: a, ax = a.T, ax
+        
         if rem_mult == _0: np.dot(a, ax, out=out)
         else:
             ac = np.dot(a, ax)

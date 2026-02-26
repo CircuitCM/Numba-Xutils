@@ -3,7 +3,7 @@ from __future__ import annotations
 import numpy as np
 
 import nbux
-import nbux._sort as nbux_sort
+import nbux.sort as nbux_sort
 from tests.numba_layers import iter_function_layers
 
 

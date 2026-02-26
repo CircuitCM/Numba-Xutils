@@ -1,7 +1,6 @@
 from __future__ import annotations
 
-from . import algo, op, rng, utils
-from ._sort import arg_insert_sort, arg_merge_sort, insert_sort, merge_sort
+from . import algo, op, rng, sort, utils
 from .op import vector
 
 __all__ = [
@@ -10,8 +9,5 @@ __all__ = [
     "rng",
     "utils",
     "vector",
-    "arg_insert_sort",
-    "arg_merge_sort",
-    "insert_sort",
-    "merge_sort",
+    "sort"
 ]
