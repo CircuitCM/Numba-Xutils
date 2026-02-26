@@ -1,5 +1,11 @@
+from __future__ import annotations
+
 import numba as nb
 import numpy as np
+from aopt.grad.optim.curvature import ResetQN
+
+from nbux.utils import Op
+
 #from nevergrad.benchmark.experiments import parallel
 
 ### --- 1: OPERATOR STRATEGY
@@ -280,3 +286,154 @@ def v1p1_grad_paramproj(x_tu_p: nb.types.Array(np.float32, 1, 'C', aligned=True)
 # Situation Demo, Basic example.
 
 #ChatGPTs implementation of v 'clean' implementation for flexible operators.
+
+from enum import IntEnum, auto
+
+import nbux.utils as nbu
+
+
+class Update(IntEnum):
+    
+    Full1=auto()
+    Full2=auto()
+    Fast=auto()
+
+class Step(IntEnum):
+    
+    Step1=auto()
+    Step2=auto()
+    Step3=auto()
+    
+#In reality the Enum class s/b named after the function of the general category, and attributes s/b named after the specific procedure. Like QNUpdate: SR1 and BFGS, or LossFunc: Softmax and Lasso.
+
+@nbu.rg
+def Full1Args(lo=None, hi=None, alpha=.99, dtyp=np.float64):
+    # Hypothetical lo and hi bounds on the FP range to a square factor. Could be for used for e.g. bounding ill-conditioned amplitudes/ranges.
+    bl,bh = dtyp(-mt.sqrt(nbu.pi_(dtyp,0))), dtyp(mt.sqrt(nbu.pi_(dtyp,1)))
+    if lo is None: lo=bl
+    else: lo = max(dtyp(lo),bl)
+    if hi is None: hi=bh
+    else: hi = min(dtyp(hi),bh)
+    # Say alpha is a decay rate so must be between 0 and 1.
+    alpha = dtyp(max(0.,min(alpha,1.)))
+    # Note: these are just examples of constraints and what is possible, but in practice it might be better to enforce them minimally, mostly doing type casting, to give the users more freedom and have boilerplate.
+    return lo, hi, alpha
+
+
+@nbu.rg
+def Full2Args(lo=None, hi=None, alpha=.98, zeta=20., gamma=10., dtyp=np.float64):
+    lo,hi,alpha = Full1Args(lo, hi, alpha, dtyp)
+    zeta,gamma=dtyp(zeta),dtyp(gamma)
+    zeta = max(zeta,gamma)
+    return lo, hi, alpha, zeta, gamma
+
+
+@nbu.jtc
+def full1(x,b,lo,hi,alpha):
+    return b
+
+@nbu.jtc
+def full2(x,B,lo,hi,alpha,zeta,gamma):
+    return B
+
+@nbu.jt
+def fast(x,B):
+    return B
+    
+
+@nbu.rg
+def _update_defaultargs(itype, args, dtyp=np.float64, _protect=True):
+    #itype - Interface type.
+    if args is None:
+        #The *Args don't need defaults, but if the user wants to use Full1Args themselves it would be better easier.
+        if itype == Update.Full1: return Full1Args(dtyp=dtyp)
+        elif itype == Update.Full2: return Full2Args(dtyp=dtyp)
+        # represents fast without any args, but this can also represent all other versions without args.
+        else: return ()
+    # Full2Args is already made partially by Full1Args, however we can also represent same procedures if desired. e.g. have FullArgs3 be a wrapper for FullArgs2 with different defaults.
+
+    #could fail if tuple isn't the correct length and type casting isn't possible, this is a good behavior.
+    elif _protect:
+        if itype == Update.Full1: return Full1Args(*args,dtyp)
+        elif itype == Update.Full2: return Full2Args(*args,dtyp)
+        else: return ()
+    
+    return args
+
+
+@nbu.rg
+def _step_defaultargs(itype, args, dtyp=np.float64, _protect=True):
+    #Would be basically the same as Update, you get the idea.
+    return args
+
+
+
+@nbu.jt
+def another_algo(call_op: Op,
+                 update_type=Update.Full1,
+                 update_args=None,
+                 step_type=Step.Step1,
+                 step_args=None,
+                 workmem=None,
+                 _protect=True):
+    #_protect=False in case the user ever wants to force override argument protection, like undocumented types, or
+    #calling another_algo repeatedly in another jit routine, _protect=False within the jit scope will make it constant
+    #an eliminate any overhead to the _group constructors.
+    
+    #Sometimes the algo itself doesn't update one of the arrays, but the operator still requires an initial state.
+    # in that case it's common to embed it as an argument in the primary operator. Otherwise the algo would need the
+    # same args used in _mem.
+    x = call_op[1]
+    tp=nbu.tr_(x)
+    update_args=_update_defaultargs(update_type,update_args,tp,_protect)
+    step_args=_step_defaultargs(step_type,step_args,tp,_protect)
+    bB=another_algo_mem(x.shape[0],update_type,tp,workmem)
+    
+    #if _type are not constant values, it's possible these will be linked only after compilation.
+    #in which case it would be quicker to 
+    update = full1 if update_type==Update.Full1 else full2 if update_type==Update.Full2 else fast
+    step = ... #same thing
+    
+    while True:
+        
+        #Three Update strategies
+        bB = update(x,bB,*update_args)
+        
+        #Three Step strategies
+        x = step(x,*step_args)
+        
+        #... more code like the break condition
+    
+    #9 unique strategies each with different code and custom arguments, are now represented in a minimal and standard manner.
+        
+
+@nbu.jt
+def another_algo_mem(n,upd_type,dtyp,workmem=None):
+    """All memory init/mapping should still be handled by _mem/_workmem functions. So the Enum group's specifier should
+    be included here to make varying memory requirements; and not included in the *Args tuple initializers.
+    
+    Order the Enum attributes by similar memory needs so that it's convenient to use le ge conditions. 
+    If that isn't enough or there's e.g. a shared subroutine between all the `Update` routines involving arrays, then
+    add a integer specifier in all *Args input/output at a shared index eg idx = 0 or i, which controls just the memory 
+    config, constraints can be added to *Args for just allowed. Example: upd_mem_t, then you don't need upd_type unless
+    there is some other reason to place it in _mem.
+    """
+    n_b = n*nbu.pi_(dtyp, 3)
+
+    if upd_type >= Update.Full2: 
+        n_b*=n_b
+        resh=(n,n)
+    #its 1d type
+    else: resh=(n,)
+    if workmem is None: workmem = np.empty((n_b,),dtyp)
+    return nbu.fb_(workmem,dtype=dtyp).reshape(resh)
+
+
+
+
+
+
+
+
+
+print()

@@ -1,9 +1,13 @@
+from __future__ import annotations
+
 import math as mt
 import time as t
 
 import matplotlib.pyplot as plt
 import numpy as np
 from scipy.stats import t as tdist  # for t-distribution critical value
+
+plt.ion()
 
 
 def time_funcs(callables, names, reset_call,
@@ -127,7 +131,7 @@ def time_funcs(callables, names, reset_call,
     plt.title("Timing (99% CI via t-dist)", color=bcolor, fontsize=16)
     plt.legend(facecolor='none', edgecolor=bcolor, fontsize=12, labelcolor=bcolor)
     plt.tight_layout()
-    plt.show()
+    #plt.show()
 
 
 def matplot_transparent_3d(grid,bounds, name=None):

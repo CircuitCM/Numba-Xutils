@@ -243,26 +243,6 @@ def lars1_memspec(
 _I64 = nbu.prim_info(np.int64, 1)
 
 
-@nbu.jtic
-def durstenfeld_p_shuffle(a: np.ndarray, k: int = _I64) -> None:
-    """
-    Perform up to k swaps of the Durstenfeld shuffle on array 'v'.
-    Shuffling should still be unbiased even if a isn't changed back to sorted.
-
-    :param a: Array to shuffle in-place.
-    :param k: Maximum number of swaps.
-    :returns: None.
-    """
-    n = a.shape[0]
-    num_swaps = min(k, n - 1)
-    for i in range(num_swaps):
-        j = rand.randrange(i, n)
-        # Swap in-place
-        tmp = a[i]
-        a[i] = a[j]
-        a[j] = tmp
-
-
 @nbu.jtc
 def latin_hypercube_sample(
     n_samples: int, bds: Sequence[tuple[float, float]] | np.ndarray | tuple[tuple[float, float], ...]

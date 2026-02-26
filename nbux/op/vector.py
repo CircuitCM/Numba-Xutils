@@ -58,11 +58,13 @@ So in the future we could eliminate some implementations but for visual reasons 
 from __future__ import annotations
 
 import math as mt
-from typing import Tuple
+from typing import Sequence, Tuple, TypeVar
 
 import numpy as np
 
 import nbux.utils as nbu
+
+T = TypeVar("T")
 
 # two dashes are old definitions or just unecessary.
 # methods like x[:]=s, x[:]=y, x[:]+=s, x[:]+=y and other single-variable broadcasts should have no loss of performance
@@ -225,7 +227,9 @@ def pxaxy(x: np.ndarray, y: np.ndarray, s1: float) -> np.ndarray:
 # https://en.wikichip.org/wiki/intel/microarchitectures/skylake_(client)#Scheduler_Ports_.26_Execution_Units
 @nbu.jti
 def cxpyapz(x: np.ndarray, y: np.ndarray, z: np.ndarray, s1: float, s2: float) -> np.ndarray:
-    r"""`x = s1 * y + s2 * z`, $x := s_1 y + s_2 z$."""
+    r"""`x = s1 * y + s2 * z`, $x := s_1 y + s_2 z$.  
+    Triads are just as effective when x, y, z all have differe
+    100% faster than a cxpy and axpy, if no further accumulations are needed on x"""
     n = y.shape[0]
     s1, s2 = nbu.type_ref(y)(s1), nbu.type_ref(z)(s2)
     for i in range(n): x[i] = s1 * y[i] + s2 * z[i]
@@ -235,10 +239,12 @@ def cxpyapz(x: np.ndarray, y: np.ndarray, z: np.ndarray, s1: float, s2: float) -
 # pxaxpy and cxpyapz should see a 2x performance boost from counterparts
 
 
-# this is actual a 3 port load technically but still seems to improve in benchmarking.
+# this is actually a 3 port load but still seems to improve in benchmarking.
 @nbu.jti
 def axpyapz(x: np.ndarray, y: np.ndarray, z: np.ndarray, s1: float, s2: float) -> np.ndarray:
-    r"""`x += s1 * y + s2 * z`, $x := x + s_1 y + s_2 z$."""
+    r"""`x += s1 * y + s2 * z`, $x := x + s_1 y + s_2 z$.
+    20-50% faster than an axpy and axpy, if no further accumulations.
+    """
     n = y.shape[0]
     s1, s2 = nbu.type_ref(y)(s1), nbu.type_ref(z)(s2)
     for i in range(n): x[i] += s1 * y[i] + s2 * z[i]
@@ -290,7 +296,7 @@ def axypz(x: np.ndarray, y: np.ndarray, z: np.ndarray, s1: float, s2: float) -> 
 
 
 @nbu.jti
-def vmax(x: np.ndarray) -> float:
+def vmax(x: np.ndarray) -> T:
     r"""Finds the maximum value in a vector: $v \leftarrow \max(x_i)$"""
     typ = nbu.type_ref(x)
     s = typ(nbu.prim_info(typ, 0))
@@ -298,13 +304,29 @@ def vmax(x: np.ndarray) -> float:
         if e > s: s = e
     return s
 
+@nbu.rgi
+def smax(x: Sequence[T]) -> T:
+    r"""Finds the maximum value in a sequence (compatible with tuples and arrays): $v \leftarrow \max(x_i)$"""
+    s = x[0]
+    for e in x[1:]:
+        if e > s: s = e
+    return s
+
 
 @nbu.jti
-def vmin(x: np.ndarray) -> float:
+def vmin(x: np.ndarray) -> T:
     r"""Finds the minimum value in a vector: $v \leftarrow \min(x_i)$"""
     typ = nbu.type_ref(x)
     s = typ(nbu.prim_info(typ, 1))
     for e in x:
+        if e < s: s = e
+    return s
+
+@nbu.rgi
+def smin(x: Sequence[T]) -> T:
+    r"""Finds the minimum value in a sequence (compatible with tuples and arrays): $v \leftarrow \min(x_i)$"""
+    s = x[0]
+    for e in x[1:]:
         if e < s: s = e
     return s
 
